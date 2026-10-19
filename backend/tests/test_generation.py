@@ -99,3 +99,16 @@ def test_capacity_scaling(sample_pv_data, standard_dates):
     assert len(summary_5kw.monthly_breakdown) == 12
     # Strongest month should generate more than weakest month
     assert summary_5kw.strongest_month.total_kwh > summary_5kw.weakest_month.total_kwh
+
+
+def test_system_losses_derate_scaling(sample_pv_data, standard_dates):
+    """Verify system losses derate calculation: 20% losses vs 10% base scales generation by 0.80/0.90."""
+    start_d, end_d = standard_dates
+    intervals, val = validate_time_series(sample_pv_data["data"], start_d, end_d)
+
+    summary_10pct = aggregate_generation(intervals, system_capacity_kw=5.0, validation=val, system_losses_pct=10.0)
+    summary_20pct = aggregate_generation(intervals, system_capacity_kw=5.0, validation=val, system_losses_pct=20.0)
+
+    expected_ratio = (1.0 - 0.20) / (1.0 - 0.10)  # 0.80 / 0.90 = 0.8888...
+    assert pytest.approx(summary_20pct.total_generation_kwh / summary_10pct.total_generation_kwh, rel=1e-3) == expected_ratio
+

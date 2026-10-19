@@ -2,7 +2,17 @@ import React, { useState } from "react";
 import { ScopeInput } from "../../types/analysis";
 import { validateScopeInput, ScopeValidationErrors } from "../../utils/validation";
 import { NumericSliderField } from "./NumericSliderField";
-import { MapPin, Sun, DollarSign, Play } from "lucide-react";
+import { SUPPORTED_LOCATIONS, DEFAULT_BENCHMARK_LOCATION } from "../../config/locations";
+import {
+  MapPin,
+  Calendar,
+  Sun,
+  Play,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  Sliders,
+} from "lucide-react";
 
 interface ScopeFormProps {
   initialValues?: ScopeInput;
@@ -10,29 +20,25 @@ interface ScopeFormProps {
   isLoading: boolean;
 }
 
-const PRESET_LOCATIONS = [
-  { name: "San Francisco, CA", lat: 37.7749, lon: -122.4194, tilt: 30, azim: 180 },
-  { name: "Phoenix, AZ", lat: 33.4484, lon: -112.0740, tilt: 25, azim: 180 },
-  { name: "London, UK", lat: 51.5074, lon: -0.1278, tilt: 35, azim: 180 },
-  { name: "Berlin, DE", lat: 52.5200, lon: 13.4050, tilt: 35, azim: 180 },
-  { name: "Sydney, AU", lat: -33.8688, lon: 151.2093, tilt: 25, azim: 0 }, // North facing in southern hemisphere
-];
-
 export const ScopeForm: React.FC<ScopeFormProps> = ({
   initialValues,
   onSubmit,
   isLoading,
 }) => {
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("san_francisco");
+  const [showLocationDetails, setShowLocationDetails] = useState<boolean>(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
+
   const [scope, setScope] = useState<ScopeInput>(
     initialValues || {
-      location_name: "San Francisco, CA",
-      latitude: 37.7749,
-      longitude: -122.4194,
+      location_name: DEFAULT_BENCHMARK_LOCATION.name,
+      latitude: DEFAULT_BENCHMARK_LOCATION.latitude,
+      longitude: DEFAULT_BENCHMARK_LOCATION.longitude,
       start_date: "2019-01-01",
       end_date: "2019-12-31",
       system_capacity_kw: 5.0,
-      tilt_degrees: 30.0,
-      azimuth_degrees: 180.0,
+      tilt_degrees: DEFAULT_BENCHMARK_LOCATION.defaultTilt,
+      azimuth_degrees: DEFAULT_BENCHMARK_LOCATION.defaultAzimuth,
       system_losses_pct: 10.0,
       installation_cost: 7500.0,
       import_tariff: 0.28,
@@ -43,22 +49,28 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
     }
   );
 
-  const [forceFixture, setForceFixture] = useState(false);
   const [errors, setErrors] = useState<ScopeValidationErrors>({});
+
+  const currentLocationConfig =
+    SUPPORTED_LOCATIONS.find((loc) => loc.id === selectedLocationId) || DEFAULT_BENCHMARK_LOCATION;
+
+  const handleLocationChange = (locationId: string) => {
+    setSelectedLocationId(locationId);
+    const loc = SUPPORTED_LOCATIONS.find((l) => l.id === locationId);
+    if (loc && loc.isBenchmarkAvailable) {
+      setScope((prev) => ({
+        ...prev,
+        location_name: loc.name,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        tilt_degrees: loc.defaultTilt,
+        azimuth_degrees: loc.defaultAzimuth,
+      }));
+    }
+  };
 
   const updateField = <K extends keyof ScopeInput>(field: K, value: ScopeInput[K]) => {
     setScope((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handlePresetSelect = (preset: typeof PRESET_LOCATIONS[0]) => {
-    setScope((prev) => ({
-      ...prev,
-      location_name: preset.name,
-      latitude: preset.lat,
-      longitude: preset.lon,
-      tilt_degrees: preset.tilt,
-      azimuth_degrees: preset.azim,
-    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -69,83 +81,158 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
       return;
     }
     setErrors({});
-    onSubmit(scope, forceFixture);
+    // In local benchmark mode, forceFixture is explicitly true to bypass live API requests
+    onSubmit(scope, true);
   };
 
   return (
     <form onSubmit={handleSubmit} style={{ maxWidth: "860px", margin: "0 auto" }}>
-      {/* Location & Period Section */}
+      {/* Benchmark Mode Active Indicator */}
+      <div
+        className="card"
+        style={{
+          padding: "0.875rem 1.25rem",
+          marginBottom: "1.25rem",
+          backgroundColor: "var(--emerald-50)",
+          border: "1px solid var(--emerald-200)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <ShieldCheck size={18} color="var(--emerald-700)" />
+          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--emerald-900)" }}>
+            Deterministic Benchmark Mode Active
+          </span>
+        </div>
+        <span style={{ fontSize: "0.8125rem", color: "var(--emerald-800)" }}>
+          Simulating with verified 8,760-hour hourly solar PV dataset • Live API requests bypassed
+        </span>
+      </div>
+
+      {/* 1. Location Selection Section */}
       <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
           <MapPin size={20} color="var(--emerald-600)" />
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>1. Location & Analysis Period</h2>
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>1. Project Location</h2>
         </div>
+        <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          Select a supported benchmark site. Coordinates and atmospheric solar geometry are resolved internally.
+        </p>
 
-        {/* Quick select presets */}
-        <div style={{ marginBottom: "1.25rem" }}>
-          <label style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-secondary)", display: "block", marginBottom: "0.5rem" }}>
-            Benchmark Preset Locations:
+        {/* Location Selector Dropdown */}
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.35rem" }}>
+            Select Location:
           </label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {PRESET_LOCATIONS.map((preset) => (
-              <button
-                key={preset.name}
-                type="button"
-                onClick={() => handlePresetSelect(preset)}
-                className="btn btn-secondary"
-                style={{
-                  fontSize: "0.8125rem",
-                  padding: "0.35rem 0.75rem",
-                  borderColor: scope.location_name === preset.name ? "var(--emerald-600)" : "var(--border-default)",
-                  backgroundColor: scope.location_name === preset.name ? "var(--emerald-50)" : "var(--bg-primary)",
-                  color: scope.location_name === preset.name ? "var(--emerald-700)" : "var(--text-secondary)",
-                }}
+          <select
+            value={selectedLocationId}
+            onChange={(e) => handleLocationChange(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.625rem 0.75rem",
+              fontSize: "0.9375rem",
+              fontWeight: 500,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border-default)",
+              backgroundColor: "var(--bg-primary)",
+              color: "var(--text-primary)",
+              cursor: "pointer",
+            }}
+          >
+            {SUPPORTED_LOCATIONS.map((loc) => (
+              <option
+                key={loc.id}
+                value={loc.id}
+                disabled={!loc.isBenchmarkAvailable}
               >
-                {preset.name}
-              </button>
+                {loc.name} {loc.isBenchmarkAvailable ? "✓ (Verified Benchmark Available)" : "— (Requires Live API Key — Unavailable in Benchmark Mode)"}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+        {/* Location Status Card */}
+        <div
+          style={{
+            padding: "0.875rem",
+            backgroundColor: "var(--bg-secondary)",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border-default)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
-              Latitude (decimal degrees)
-            </label>
-            <input
-              type="number"
-              step="0.0001"
-              value={scope.latitude}
-              onChange={(e) => updateField("latitude", parseFloat(e.target.value))}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border-default)",
-              }}
-            />
-            {errors.latitude && <p style={{ color: "var(--rose-500)", fontSize: "0.75rem", marginTop: "0.25rem" }}>{errors.latitude}</p>}
+            <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{currentLocationConfig.name}</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+              {currentLocationConfig.description}
+            </div>
           </div>
-
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
-              Longitude (decimal degrees)
-            </label>
-            <input
-              type="number"
-              step="0.0001"
-              value={scope.longitude}
-              onChange={(e) => updateField("longitude", parseFloat(e.target.value))}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border-default)",
-              }}
-            />
-            {errors.longitude && <p style={{ color: "var(--rose-500)", fontSize: "0.75rem", marginTop: "0.25rem" }}>{errors.longitude}</p>}
-          </div>
+          <span className="badge badge-emerald" style={{ whiteSpace: "nowrap" }}>
+            {currentLocationConfig.statusBadge}
+          </span>
         </div>
+
+        {/* Optional Collapsible Location Details */}
+        <div style={{ marginTop: "0.75rem" }}>
+          <button
+            type="button"
+            onClick={() => setShowLocationDetails(!showLocationDetails)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              fontSize: "0.8125rem",
+              color: "var(--text-tertiary)",
+              fontWeight: 500,
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+            }}
+          >
+            {showLocationDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showLocationDetails ? "Hide technical location details" : "Show technical site & coordinate details"}
+          </button>
+
+          {showLocationDetails && (
+            <div
+              style={{
+                marginTop: "0.5rem",
+                padding: "0.75rem",
+                backgroundColor: "var(--bg-primary)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "0.8125rem",
+                color: "var(--text-secondary)",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.5rem",
+              }}
+            >
+              <div><strong>Internal Latitude:</strong> {currentLocationConfig.latitude.toFixed(4)}° N</div>
+              <div><strong>Internal Longitude:</strong> {currentLocationConfig.longitude.toFixed(4)}° W</div>
+              <div><strong>Atmospheric Model:</strong> MERRA-2 Grid Reanalysis</div>
+              <div><strong>Benchmark Coverage:</strong> 8,760 Continuous Hourly Intervals</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Analysis Period Section */}
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+          <Calendar size={20} color="var(--emerald-600)" />
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>2. Analysis Period</h2>
+        </div>
+        <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          Pre-populated with the supported benchmark dataset year (2019-01-01 to 2019-12-31, 8,760 hours).
+        </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
           <div>
@@ -155,6 +242,8 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
             <input
               type="date"
               value={scope.start_date}
+              min="2019-01-01"
+              max="2019-12-31"
               onChange={(e) => updateField("start_date", e.target.value)}
               style={{
                 width: "100%",
@@ -167,11 +256,13 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
 
           <div>
             <label style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
-              End Date (max 366 days)
+              End Date
             </label>
             <input
               type="date"
               value={scope.end_date}
+              min="2019-01-01"
+              max="2019-12-31"
               onChange={(e) => updateField("end_date", e.target.value)}
               style={{
                 width: "100%",
@@ -185,79 +276,37 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
         {errors.dates && <p style={{ color: "var(--rose-500)", fontSize: "0.75rem", marginTop: "0.5rem" }}>{errors.dates}</p>}
       </div>
 
-      {/* PV System Specification Section */}
+      {/* 3. Primary Solar System & Economic Scope */}
       <div className="card" style={{ marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
           <Sun size={20} color="var(--emerald-600)" />
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>2. Solar PV System Configuration</h2>
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>3. System Capacity & Primary Economics</h2>
         </div>
 
         <NumericSliderField
-          label="Rated System Capacity"
+          label="Rated PV System Capacity"
           value={scope.system_capacity_kw}
           min={0.5}
           max={50.0}
           step={0.5}
           unit="kW"
-          helpText="Nominal DC nameplate capacity of the solar array."
+          helpText="Nominal DC nameplate capacity. Scales simulated hourly power output proportionally."
           isAssumption={false}
           onChange={(v) => updateField("system_capacity_kw", v)}
         />
         {errors.system_capacity_kw && <p style={{ color: "var(--rose-500)", fontSize: "0.75rem" }}>{errors.system_capacity_kw}</p>}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-          <NumericSliderField
-            label="Panel Tilt"
-            value={scope.tilt_degrees}
-            min={0}
-            max={70}
-            step={1}
-            unit="deg"
-            helpText="0° = horizontal, 90° = vertical."
-            onChange={(v) => updateField("tilt_degrees", v)}
-          />
-
-          <NumericSliderField
-            label="Azimuth Orientation"
-            value={scope.azimuth_degrees}
-            min={0}
-            max={360}
-            step={5}
-            unit="deg"
-            helpText="180° = South, 90° = East, 270° = West."
-            onChange={(v) => updateField("azimuth_degrees", v)}
-          />
-        </div>
-
         <NumericSliderField
-          label="Estimated System Losses"
-          value={scope.system_losses_pct}
-          min={0}
-          max={35}
-          step={1}
-          unit="%"
-          helpText="Derate for inverter conversion, wiring resistance, and surface soiling (industry norm: 10-14%)."
-          onChange={(v) => updateField("system_losses_pct", v)}
-        />
-      </div>
-
-      {/* Financial Assumptions Section */}
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-          <DollarSign size={20} color="var(--emerald-600)" />
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600 }}>3. Financial & Economic Assumptions</h2>
-        </div>
-
-        <NumericSliderField
-          label="Turnkey Installation Cost"
+          label="Turnkey Capital Installation Cost"
           value={scope.installation_cost}
           min={500}
           max={50000}
           step={250}
           unit="USD"
-          helpText="Total capital expenditure including equipment, mounting, inverters, and labor."
+          helpText="Total capital investment including hardware, inverter, mounting, and installation labor."
           onChange={(v) => updateField("installation_cost", v)}
         />
+        {errors.installation_cost && <p style={{ color: "var(--rose-500)", fontSize: "0.75rem" }}>{errors.installation_cost}</p>}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
           <NumericSliderField
@@ -267,7 +316,7 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
             max={0.80}
             step={0.01}
             unit="$/kWh"
-            helpText="Retail grid electricity price offset by on-site solar consumption."
+            helpText="Utility grid price displaced by self-consumed solar electricity."
             onChange={(v) => updateField("import_tariff", v)}
           />
 
@@ -283,45 +332,121 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-          <NumericSliderField
-            label="Estimated Self-Consumption"
-            value={scope.self_consumption_pct}
-            min={0}
-            max={100}
-            step={5}
-            unit="%"
-            helpText="Fraction of solar power consumed locally (typical residential without battery: 40-70%)."
-            onChange={(v) => updateField("self_consumption_pct", v)}
-          />
+        <NumericSliderField
+          label="Estimated On-Site Self-Consumption"
+          value={scope.self_consumption_pct}
+          min={0}
+          max={100}
+          step={5}
+          unit="%"
+          helpText="Fraction of solar power consumed locally on-site (typical residential without battery: 40-70%)."
+          onChange={(v) => updateField("self_consumption_pct", v)}
+        />
+      </div>
 
-          <NumericSliderField
-            label="Annual Operations & Maintenance"
-            value={scope.annual_maintenance_cost}
-            min={0}
-            max={500}
-            step={10}
-            unit="$/yr"
-            helpText="Routine inspection, cleaning, and inverter warranty reserve."
-            onChange={(v) => updateField("annual_maintenance_cost", v)}
-          />
+      {/* 4. Expandable Advanced Technical & Physical Parameters */}
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div
+          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Sliders size={20} color="var(--emerald-600)" />
+            <h2 style={{ fontSize: "1.05rem", fontWeight: 600 }}>
+              4. Advanced Technical Parameters (Optional)
+            </h2>
+          </div>
+          <button
+            type="button"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              fontSize: "0.8125rem",
+              color: "var(--text-secondary)",
+              fontWeight: 500,
+            }}
+          >
+            {showAdvancedSettings ? "Collapse" : "Expand"}
+            {showAdvancedSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
         </div>
+
+        {showAdvancedSettings && (
+          <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid var(--border-default)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+              <div>
+                <NumericSliderField
+                  label="Panel Tilt"
+                  value={scope.tilt_degrees}
+                  min={0}
+                  max={70}
+                  step={1}
+                  unit="deg"
+                  helpText="In benchmark mode, irradiance reflects the verified 30° tilt benchmark."
+                  onChange={(v) => updateField("tilt_degrees", v)}
+                />
+              </div>
+
+              <div>
+                <NumericSliderField
+                  label="Azimuth Orientation"
+                  value={scope.azimuth_degrees}
+                  min={0}
+                  max={360}
+                  step={5}
+                  unit="deg"
+                  helpText="In benchmark mode, irradiance reflects the 180° South-facing baseline."
+                  onChange={(v) => updateField("azimuth_degrees", v)}
+                />
+              </div>
+            </div>
+
+            <NumericSliderField
+              label="Estimated System Losses"
+              value={scope.system_losses_pct}
+              min={0}
+              max={35}
+              step={1}
+              unit="%"
+              helpText="Inverter, wiring, and soiling losses. Calculated as derate relative to 10% base derate."
+              onChange={(v) => updateField("system_losses_pct", v)}
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+              <NumericSliderField
+                label="Annual Maintenance (O&M)"
+                value={scope.annual_maintenance_cost}
+                min={0}
+                max={500}
+                step={10}
+                unit="$/yr"
+                helpText="Routine inspection, cleaning, and inverter warranty reserve."
+                onChange={(v) => updateField("annual_maintenance_cost", v)}
+              />
+
+              <NumericSliderField
+                label="Project Lifetime"
+                value={scope.project_lifetime_years}
+                min={5}
+                max={40}
+                step={1}
+                unit="years"
+                helpText="Operational life used to calculate 25-yr net cash flows and payback achievability."
+                onChange={(v) => updateField("project_lifetime_years", v)}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Data Source Configuration */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--text-secondary)", cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={forceFixture}
-            onChange={(e) => setForceFixture(e.target.checked)}
-            style={{ accentColor: "var(--emerald-600)" }}
-          />
-          <span>Force deterministic local benchmark fixture (bypass live API calls)</span>
-        </label>
-      </div>
-
-      {/* Submit Button */}
+      {/* Submit Action */}
       <button
         type="submit"
         disabled={isLoading}
@@ -335,7 +460,7 @@ export const ScopeForm: React.FC<ScopeFormProps> = ({
         }}
       >
         <Play size={18} />
-        {isLoading ? "Running Feasibility Engine..." : "Run Solar Feasibility Analysis"}
+        {isLoading ? "Executing Feasibility Engine..." : "Run Solar Feasibility Analysis"}
       </button>
     </form>
   );

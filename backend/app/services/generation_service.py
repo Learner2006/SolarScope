@@ -48,12 +48,21 @@ class GenerationService:
         if "api_warning" in prov_meta:
             val_result.warnings.append(prov_meta["api_warning"])
 
-        # Aggregate generation
+        # Disclose benchmark limitation if custom tilt/azimuth requested in benchmark mode
+        if not is_live and (abs(scope.tilt_degrees - 30.0) > 0.01 or abs(scope.azimuth_degrees - 180.0) > 0.01):
+            val_result.warnings.append(
+                "Benchmark Mode Limitation: The local verified fixture represents a fixed 30° tilt and 180° South-facing "
+                "panel orientation. Dynamic angle re-simulation requires live Renewables.ninja API mode."
+            )
+
+        # Aggregate generation with system losses derate
         domain_summary = aggregate_generation(
             intervals=intervals,
             system_capacity_kw=scope.system_capacity_kw,
             validation=val_result,
             base_sim_capacity_kw=1.0,
+            system_losses_pct=scope.system_losses_pct,
+            base_system_loss_pct=10.0,
         )
 
         # Build response schema

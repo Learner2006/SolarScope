@@ -59,6 +59,8 @@ def aggregate_generation(
     system_capacity_kw: float,
     validation: TimeSeriesValidationResult,
     base_sim_capacity_kw: float = 1.0,
+    system_losses_pct: float = 10.0,
+    base_system_loss_pct: float = 10.0,
 ) -> GenerationSummary:
     """Aggregate raw time-series intervals into period-level and monthly metrics.
 
@@ -72,6 +74,10 @@ def aggregate_generation(
         Validation outcome from time_series module.
     base_sim_capacity_kw : float
         Capacity of the base simulation (defaults to 1.0 kW if scaled).
+    system_losses_pct : float
+        User-specified system losses percentage (derate).
+    base_system_loss_pct : float
+        Baseline system losses embedded in the underlying simulation dataset (default 10%).
 
     Returns
     -------
@@ -81,8 +87,15 @@ def aggregate_generation(
     if system_capacity_kw <= 0:
         raise ValueError(f"System capacity must be greater than 0, got {system_capacity_kw}")
 
-    # Scaling factor from 1 kW base simulation to requested capacity
-    scale = system_capacity_kw / base_sim_capacity_kw if base_sim_capacity_kw > 0 else 1.0
+    # Relative losses derate adjustment:
+    # If base fixture has 10% loss and user specifies 15% loss, scale by (1 - 0.15) / (1 - 0.10)
+    base_delivery = max(0.01, 1.0 - (base_system_loss_pct / 100.0))
+    user_delivery = max(0.0, 1.0 - (system_losses_pct / 100.0))
+    loss_scale = user_delivery / base_delivery
+
+    # Scaling factor from 1 kW base simulation to requested capacity with losses adjustment
+    capacity_scale = system_capacity_kw / base_sim_capacity_kw if base_sim_capacity_kw > 0 else 1.0
+    scale = capacity_scale * loss_scale
 
     if not intervals:
         empty_month = MonthlyGenerationMetric(

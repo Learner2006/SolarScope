@@ -55,3 +55,22 @@ describe("Scope Input Validation", () => {
     expect(errors.installation_cost).toContain("cannot be negative");
   });
 });
+
+describe("Location Configuration & Benchmark Integrity", () => {
+  it("verifies that only genuine benchmark locations are marked available", async () => {
+    const { SUPPORTED_LOCATIONS } = await import("../config/locations");
+    const sf = SUPPORTED_LOCATIONS.find((l) => l.id === "san_francisco");
+    expect(sf).toBeDefined();
+    expect(sf?.isBenchmarkAvailable).toBe(true);
+    expect(sf?.latitude).toBeCloseTo(37.7749, 4);
+    expect(sf?.longitude).toBeCloseTo(-122.4194, 4);
+
+    // Other locations must not be falsely marked as available in benchmark mode
+    const others = SUPPORTED_LOCATIONS.filter((l) => l.id !== "san_francisco");
+    others.forEach((loc) => {
+      expect(loc.isBenchmarkAvailable).toBe(false);
+      expect(loc.statusBadge).toContain("Requires Live API Key");
+    });
+  });
+});
+
