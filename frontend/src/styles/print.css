@@ -1,0 +1,58 @@
+@media print {
+  /* Hide navigation, buttons, controls, and footers when printing */
+  .app-header,
+  .app-footer,
+  .no-print,
+  button,
+  .btn,
+  .nav-links,
+  .floating-energy-orb {
+    display: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+  }
+
+  .main-content {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .report-document {
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .card {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 1rem !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 10px !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+}
