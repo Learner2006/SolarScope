@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import uuid
 from backend.app.api.schemas.analysis import (
@@ -89,7 +89,7 @@ class AnalysisService:
         all_warnings.extend(domain_fin.warnings)
 
         analysis_id = str(uuid.uuid4())
-        created_at = datetime.utcnow().isoformat() + "Z"
+        created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Construct AnalysisResponse
         analysis_data = AnalysisResponse(

@@ -1,6 +1,8 @@
 # Ensure credentials, operating system metadata, build artifacts, and test caches
 # are excluded from all git archive source distributions.
-.env* export-ignore
+.env export-ignore
+.env.local export-ignore
+.env.*.local export-ignore
 .DS_Store export-ignore
 __MACOSX export-ignore
 ._* export-ignore

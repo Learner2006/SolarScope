@@ -663,4 +663,41 @@ class TestTrustAndReliabilityFixes:
         assert settings.MAX_ANALYSES_CAPACITY == 100
         assert settings.MAX_SIMULATION_DAYS == 366
 
+    @pytest.mark.anyio
+    async def test_live_api_successful_200_parsing_with_default_dataset(self):
+        """Mocked upstream HTTP 200 response must parse live data without AttributeError when dataset is None."""
+        from unittest.mock import MagicMock, patch
+        import httpx
+        from backend.app.services.renewables_ninja import RenewablesNinjaAdapter
+
+        adapter = RenewablesNinjaAdapter(api_token="test_mock_token_abc")
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "metadata": {"dataset": "merra2"},
+            "data": {
+                "2019-01-01 12:00": {"electricity": 0.85},
+                "2019-01-01 13:00": {"electricity": 0.80},
+            },
+        }
+
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            # Exercising the live-data parsing path with dataset=None (default)
+            data, meta, is_live = await adapter.fetch_pv_data(
+                lat=28.6139,
+                lon=77.2090,
+                date_from="2019-01-01",
+                date_to="2019-01-01",
+                dataset=None,
+            )
+
+        assert is_live is True
+        assert len(data) == 2
+        assert data["2019-01-01 12:00"]["electricity"] == 0.85
+        assert meta["source_type"] == "renewables_ninja_api"
+        assert meta["dataset_name"] == "MERRA2 atmospheric reanalysis (via live Renewables.ninja API)"
+        assert meta["retrieval_timestamp"].endswith("Z")
+        assert meta["is_live_retrieval"] is True
+        assert "28.6139° N, 77.2090° E" in meta["coordinates_used"]
+
 

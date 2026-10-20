@@ -25,7 +25,9 @@ else
     echo "Using zip with strict exclusion patterns..."
     zip -r "$OUTPUT_FILE" . \
         -x "*.git*" \
-        -x "*.env*" \
+        -x "*.env" \
+        -x "*.env.local" \
+        -x "*.env.*.local" \
         -x "*__MACOSX*" \
         -x "*.DS_Store*" \
         -x "*._*" \

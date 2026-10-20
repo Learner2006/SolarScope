@@ -49,7 +49,7 @@ solarscope/
 │   │   ├── api/schemas/          # Pydantic request/response contracts
 │   │   ├── repositories/         # Thread-safe in-memory session persistence
 │   │   └── data/fixtures/        # Deterministic 8,760-hour benchmark fixture
-│   └── tests/                    # 25 pytest unit and integration tests
+│   └── tests/                    # 80 pytest unit, integration, and physics regression tests
 ├── frontend/
 │   ├── package.json
 │   ├── vite.config.ts
@@ -62,7 +62,7 @@ solarscope/
 │       ├── state/                # AnalysisProvider context
 │       ├── services/             # Typed API client
 │       ├── styles/               # tokens.css, global.css, layout.css, print.css
-│       └── tests/                # Vitest unit & component tests
+│       └── tests/                # 48 Vitest unit, component, and integration tests
 └── scripts/
     ├── dev.sh                    # Starts both FastAPI and Vite servers concurrently
     └── check.sh                  # Runs complete backend, frontend, and build verification

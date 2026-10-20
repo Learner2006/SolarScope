@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -113,8 +113,8 @@ class RenewablesNinjaAdapter:
                     hourly_data = payload.get("data", {})
                     retrieval_meta = {
                         "source_type": "renewables_ninja_api",
-                        "dataset_name": f"{dataset.upper()} atmospheric reanalysis (via live Renewables.ninja API)",
-                        "retrieval_timestamp": datetime.utcnow().isoformat() + "Z",
+                        "dataset_name": f"{target_dataset.upper()} atmospheric reanalysis (via live Renewables.ninja API)",
+                        "retrieval_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "attribution": LIVE_API_ATTRIBUTION,
                         "coordinates_used": format_coordinates(lat, lon),
                         "is_live_retrieval": True,
@@ -134,7 +134,7 @@ class RenewablesNinjaAdapter:
                 if response.status_code == 429:
                     logger.warning("Renewables.ninja rate limit exceeded (50/hr).")
                     if is_sf:
-                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, dataset)
+                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, target_dataset)
                         meta["rate_limited"] = True
                         meta["api_warning"] = "Live API rate limit exceeded (429); loaded local San Francisco benchmark fixture."
                         return data, meta, False
@@ -143,7 +143,7 @@ class RenewablesNinjaAdapter:
                 elif response.status_code == 401:
                     logger.warning("Renewables.ninja token invalid or unauthorized.")
                     if is_sf:
-                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, dataset)
+                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, target_dataset)
                         meta["api_warning"] = "Invalid or unauthorized API token; loaded local San Francisco benchmark fixture."
                         return data, meta, False
                     raise UpstreamServiceError("Renewables.ninja API token is invalid or unauthorized.", status_code=502)
@@ -151,7 +151,7 @@ class RenewablesNinjaAdapter:
                 else:
                     logger.error("Renewables.ninja API returned error: %s - %s", response.status_code, response.text)
                     if is_sf:
-                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, dataset)
+                        data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, target_dataset)
                         meta["api_warning"] = f"Upstream API error ({response.status_code}); loaded local San Francisco benchmark fixture."
                         return data, meta, False
                     raise UpstreamServiceError(f"Renewables.ninja upstream API returned error ({response.status_code}).", status_code=502)
@@ -162,7 +162,7 @@ class RenewablesNinjaAdapter:
             logger.warning("Network error calling Renewables.ninja API: %s.", exc)
             is_sf = (abs(lat - 37.7749) < 0.05 and abs(lon - (-122.4194)) < 0.05)
             if is_sf:
-                data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, dataset)
+                data, meta, _ = self._load_fixture(lat, lon, date_from, date_to, target_dataset)
                 meta["api_warning"] = f"Network connection error ({type(exc).__name__}); loaded local San Francisco benchmark fixture."
                 return data, meta, False
             raise UpstreamServiceError(f"Network error communicating with Renewables.ninja API: {type(exc).__name__}", status_code=504)
@@ -191,7 +191,7 @@ class RenewablesNinjaAdapter:
         meta = {
             "source_type": "local_fixture",
             "dataset_name": "SolarScope Offline Synthetic Benchmark Fixture (San Francisco 2019)",
-            "retrieval_timestamp": datetime.utcnow().isoformat() + "Z",
+            "retrieval_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "attribution": BENCHMARK_FIXTURE_ATTRIBUTION,
             "coordinates_used": "37.7749° N, 122.4194° W (San Francisco synthetic benchmark)",
             "is_live_retrieval": False,
@@ -240,7 +240,7 @@ class RenewablesNinjaAdapter:
         meta = {
             "source_type": "solarscope_astronomical_model",
             "dataset_name": "SolarScope Clear-Sky & Astronomical Insolation Model",
-            "retrieval_timestamp": datetime.utcnow().isoformat() + "Z",
+            "retrieval_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "attribution": ASTRONOMICAL_ATTRIBUTION,
             "coordinates_used": format_coordinates(lat, lon),
             "is_live_retrieval": False,

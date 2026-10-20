@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from backend.app.api.schemas.analysis import FinancialResponseSchema
 from backend.app.api.schemas.generation import GenerationResponseSchema, ProvenanceSchema
@@ -83,7 +83,7 @@ class ReportService:
 
         return ReportResponse(
             analysis_id=analysis_id,
-            generated_at=datetime.utcnow().isoformat() + "Z",
+            generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             scope=scope,
             generation=generation,
             financials=financials,
