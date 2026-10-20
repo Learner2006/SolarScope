@@ -166,10 +166,10 @@ npm run test
 | **Self-Consumed Energy ($E_{\text{self}}$)** | $E_{\text{total}} \times (\text{Self-Consumption } \% / 100)$ |
 | **Grid-Exported Energy ($E_{\text{export}}$)** | $E_{\text{total}} - E_{\text{self}}$ |
 | **Gross Annual Savings** | $(E_{\text{self}} \times T_{\text{import}}) + (E_{\text{export}} \times T_{\text{export}})$ |
-| **Net Annual Benefit** | $\text{Gross Annual Savings} - \text{Annual O\&M Cost}$ |
+| **Net Annual Benefit** | $\text{Gross Annual Savings} - \text{Annual Maintenance Cost}$ |
 | **Simple Payback** | $\frac{\text{Installation Cost}}{\text{Net Annual Benefit}} \quad (\text{if Net Benefit } > 0)$ |
 | **25-Yr Lifetime Return** | $(\text{Net Annual Benefit} \times \text{Lifetime}) - \text{Installation Cost}$ |
-| **LCOE** | $\frac{\text{Installation Cost} + (\text{Annual O\&M} \times \text{Lifetime})}{E_{\text{total}} \times \text{Lifetime}}$ |
+| **LCOE** | $\frac{\text{Installation Cost} + (\text{Annual Maintenance Cost} \times \text{Lifetime})}{E_{\text{total}} \times \text{Lifetime}}$ |
 
 ---
 
