@@ -4,9 +4,10 @@ import { useScenarios } from "../hooks/useScenarios";
 import { ScenarioControls } from "../components/scenarios/ScenarioControls";
 import { ScenarioComparisonChart } from "../components/scenarios/ScenarioComparisonChart";
 import { ArrowLeft, FileText } from "lucide-react";
+import { formatCurrency } from "../utils/formatting";
 
 export const ScenariosPage: React.FC = () => {
-  const { currentAnalysis, navigateTo } = useAnalysis();
+  const { currentAnalysis, navigateTo, executionError } = useAnalysis();
   const {
     scenarios,
     selectedScenario,
@@ -57,7 +58,7 @@ export const ScenariosPage: React.FC = () => {
             Sensitivity & Scenario Analysis
           </h1>
           <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-            Baseline system: {currentAnalysis.scope.system_capacity_kw} kW array • Payback: {financials.simple_payback_years !== null ? `${financials.simple_payback_years} yrs` : "N/A"} • Net Savings: ${financials.net_annual_benefit}/yr
+            Baseline system: {currentAnalysis.scope.system_capacity_kw} kW array • Payback: {financials.simple_payback_years !== null ? `${financials.simple_payback_years} yrs` : "N/A"} • Net Savings: {formatCurrency(financials.net_annual_benefit, financials.currency_code || currentAnalysis.scope.currency_code || "USD")}/yr
           </p>
         </div>
 
@@ -69,6 +70,33 @@ export const ScenariosPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Graceful Eviction and Scenario Error Banner */}
+      {executionError && (
+        <div
+          className="card"
+          style={{
+            backgroundColor: "var(--rose-50)",
+            border: "1px solid var(--rose-200)",
+            color: "var(--rose-700)",
+            padding: "0.875rem 1rem",
+            marginBottom: "1.25rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderRadius: "8px",
+          }}
+        >
+          <span style={{ fontSize: "0.875rem" }}>{executionError}</span>
+          <button
+            onClick={() => navigateTo("scope")}
+            className="btn btn-secondary"
+            style={{ fontSize: "0.75rem", padding: "0.25rem 0.6rem" }}
+          >
+            Return to Scope
+          </button>
+        </div>
+      )}
+
       {/* Scenario Controls */}
       <ScenarioControls
         onRunScenario={executeScenario}
@@ -76,6 +104,8 @@ export const ScenariosPage: React.FC = () => {
         baselineCost={financials.installation_cost}
         baselineImportTariff={financials.import_tariff}
         weakestMonthName={generation.weakest_month.month_name}
+        currencyCode={financials.currency_code || currentAnalysis.scope.currency_code || "USD"}
+        existingScenarioIds={scenarios.map((s) => s.scenario_id)}
       />
 
       {/* Existing Evaluated Scenarios Selector if multiple */}

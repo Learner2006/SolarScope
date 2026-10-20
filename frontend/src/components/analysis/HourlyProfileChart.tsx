@@ -13,13 +13,15 @@ import { HourlyPoint } from "../../types/analysis";
 interface HourlyProfileChartProps {
   monthName: string;
   points: HourlyPoint[];
+  isClearSky?: boolean;
 }
 
 export const HourlyProfileChart: React.FC<HourlyProfileChartProps> = ({
   monthName,
   points,
+  isClearSky = false,
 }) => {
-  // Compute diurnal 24-hour average curve from the actual hourly simulation data for this month
+  // Compute diurnal 24-hour average curve from modeled hourly simulation data for this month
   const diurnalData = Array.from({ length: 24 }, (_, h) => {
     const matchingHours = points.filter((p) => p.hour === h);
     const avgKw =
@@ -45,7 +47,9 @@ export const HourlyProfileChart: React.FC<HourlyProfileChartProps> = ({
             Modeled Diurnal Solar Profile — {monthName}
           </h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-            Aggregated across all {points.length} modeled hourly intervals in {monthName}.
+            {isClearSky
+              ? `Aggregated across ${points.length} modeled clear-sky hourly intervals in ${monthName} (celestial sun geometry without cloud attenuation).`
+              : `Aggregated across ${points.length} modeled reanalysis hourly intervals in ${monthName}.`}
           </p>
         </div>
         <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem" }}>
@@ -102,7 +106,7 @@ export const HourlyProfileChart: React.FC<HourlyProfileChartProps> = ({
                         Time: {d.hour}
                       </strong>
                       <div>Average: <strong>{d.avg_kw} kW</strong></div>
-                      <div>Peak observed: <strong>{d.max_kw} kW</strong></div>
+                      <div>Modeled peak: <strong>{d.max_kw} kW</strong></div>
                     </div>
                   );
                 }
@@ -126,6 +130,9 @@ export const HourlyProfileChart: React.FC<HourlyProfileChartProps> = ({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      <p style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic" }}>
+        * Timestamps cover the selected analysis period. Modeled hours represent theoretical clear-sky irradiance simulations, not actual physical site measurements. Does not include historical local cloud cover or weather reanalysis.
+      </p>
     </div>
   );
 };

@@ -109,6 +109,12 @@ input, select, textarea {
   border: 1px solid #fde68a;
 }
 
+.badge-blue {
+  background-color: var(--blue-50);
+  color: var(--blue-500);
+  border: 1px solid #bfdbfe;
+}
+
 .badge-neutral {
   background-color: var(--bg-secondary);
   color: var(--text-secondary);

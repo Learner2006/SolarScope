@@ -10,7 +10,7 @@ import {
   Legend,
 } from "recharts";
 import { ScenarioResponse } from "../../types/analysis";
-import { formatCurrency, formatNumber, formatPercent } from "../../utils/formatting";
+import { formatCurrency, formatNumber, formatPercent, getCurrencySymbol } from "../../utils/formatting";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 interface ScenarioComparisonChartProps {
@@ -19,6 +19,8 @@ interface ScenarioComparisonChartProps {
 
 export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = ({ scenario }) => {
   const { baseline_financials: base, scenario_financials: scen, delta } = scenario;
+  const currency = base.currency_code || scen.currency_code || "USD";
+  const currSym = getCurrencySymbol(currency);
 
   // Chart data for comparison
   const comparisonData = [
@@ -26,19 +28,19 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
       metric: "Gross Savings",
       Baseline: base.gross_annual_savings,
       Scenario: scen.gross_annual_savings,
-      unit: "$/yr",
+      unit: `${currSym}/yr`,
     },
     {
       metric: "Net Annual Benefit",
       Baseline: base.net_annual_benefit,
       Scenario: scen.net_annual_benefit,
-      unit: "$/yr",
+      unit: `${currSym}/yr`,
     },
     {
       metric: "Turnkey Cost",
       Baseline: base.installation_cost,
       Scenario: scen.installation_cost,
-      unit: "$",
+      unit: currSym,
     },
   ];
 
@@ -116,7 +118,7 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
           </span>
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginTop: "0.25rem" }}>
             <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-              {formatCurrency(scen.net_annual_benefit)}/yr
+              {formatCurrency(scen.net_annual_benefit, currency)}/yr
             </span>
             <span
               style={{
@@ -128,11 +130,11 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
               }}
             >
               {delta.net_annual_benefit_diff_usd >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-              {delta.net_annual_benefit_diff_usd >= 0 ? `+$${delta.net_annual_benefit_diff_usd}` : `-$${Math.abs(delta.net_annual_benefit_diff_usd)}`}
+              {delta.net_annual_benefit_diff_usd >= 0 ? `+${currSym}${delta.net_annual_benefit_diff_usd}` : `-${currSym}${Math.abs(delta.net_annual_benefit_diff_usd)}`}
             </span>
           </div>
           <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
-            Baseline: {formatCurrency(base.net_annual_benefit)}/yr
+            Baseline: {formatCurrency(base.net_annual_benefit, currency)}/yr
           </span>
         </div>
 
@@ -143,7 +145,7 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
           </span>
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginTop: "0.25rem" }}>
             <span style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-              {formatCurrency(scen.lifetime_net_cash_flow)}
+              {formatCurrency(scen.lifetime_net_cash_flow, currency)}
             </span>
             <span
               style={{
@@ -155,11 +157,11 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
               }}
             >
               {delta.lifetime_cash_flow_diff_usd >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-              {delta.lifetime_cash_flow_diff_usd >= 0 ? `+$${delta.lifetime_cash_flow_diff_usd}` : `-$${Math.abs(delta.lifetime_cash_flow_diff_usd)}`}
+              {delta.lifetime_cash_flow_diff_usd >= 0 ? `+${currSym}${delta.lifetime_cash_flow_diff_usd}` : `-${currSym}${Math.abs(delta.lifetime_cash_flow_diff_usd)}`}
             </span>
           </div>
           <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
-            Baseline: {formatCurrency(base.lifetime_net_cash_flow)}
+            Baseline: {formatCurrency(base.lifetime_net_cash_flow, currency)}
           </span>
         </div>
       </div>
@@ -174,8 +176,8 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
             <BarChart data={comparisonData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
               <XAxis dataKey="metric" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={{ stroke: "var(--border-default)" }} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "var(--text-tertiary)" }} axisLine={{ stroke: "var(--border-default)" }} tickLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} />
-              <Tooltip formatter={(value: any) => [`$${Number(value).toLocaleString()}`, ""]} />
+              <YAxis tick={{ fontSize: 12, fill: "var(--text-tertiary)" }} axisLine={{ stroke: "var(--border-default)" }} tickLine={false} tickFormatter={(v) => `${currSym}${v.toLocaleString()}`} />
+              <Tooltip formatter={(value: any) => [`${currSym}${Number(value).toLocaleString()}`, ""]} />
               <Legend verticalAlign="top" height={36} />
               <Bar dataKey="Baseline" fill="var(--border-hover)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Scenario" fill="var(--emerald-600)" radius={[4, 4, 0, 0]} />
@@ -202,18 +204,18 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
           <tbody>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.6rem 0.5rem", fontWeight: 500 }}>Turnkey Capital Cost</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.installation_cost)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.installation_cost)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.installation_cost - base.installation_cost)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.installation_cost, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.installation_cost, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.installation_cost - base.installation_cost, currency)}</td>
               <td style={{ padding: "0.6rem 0.5rem" }}>
                 {base.installation_cost > 0 ? formatPercent((scen.installation_cost - base.installation_cost) / base.installation_cost, true) : "—"}
               </td>
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.6rem 0.5rem", fontWeight: 500 }}>Retail Import Tariff</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>${base.import_tariff.toFixed(3)}/kWh</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>${scen.import_tariff.toFixed(3)}/kWh</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>${(scen.import_tariff - base.import_tariff).toFixed(3)}/kWh</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{currSym} {base.import_tariff.toFixed(3)}/kWh</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{currSym} {scen.import_tariff.toFixed(3)}/kWh</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{currSym} {(scen.import_tariff - base.import_tariff).toFixed(3)}/kWh</td>
               <td style={{ padding: "0.6rem 0.5rem" }}>
                 {base.import_tariff > 0 ? formatPercent((scen.import_tariff - base.import_tariff) / base.import_tariff, true) : "—"}
               </td>
@@ -227,9 +229,9 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.6rem 0.5rem", fontWeight: 500 }}>Gross Annual Savings</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.gross_annual_savings)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.gross_annual_savings)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{delta.gross_savings_diff_usd > 0 ? `+$${delta.gross_savings_diff_usd}` : `-$${Math.abs(delta.gross_savings_diff_usd)}`}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.gross_annual_savings, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.gross_annual_savings, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{delta.gross_savings_diff_usd > 0 ? `+${currSym}${delta.gross_savings_diff_usd}` : `-${currSym}${Math.abs(delta.gross_savings_diff_usd)}`}</td>
               <td style={{ padding: "0.6rem 0.5rem" }}>{delta.gross_savings_diff_pct}%</td>
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
@@ -243,9 +245,9 @@ export const ScenarioComparisonChart: React.FC<ScenarioComparisonChartProps> = (
             </tr>
             <tr>
               <td style={{ padding: "0.6rem 0.5rem", fontWeight: 500 }}>25-Year Net Cash Flow</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.lifetime_net_cash_flow)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.lifetime_net_cash_flow)}</td>
-              <td style={{ padding: "0.6rem 0.5rem" }}>{delta.lifetime_cash_flow_diff_usd > 0 ? `+$${delta.lifetime_cash_flow_diff_usd}` : `-$${Math.abs(delta.lifetime_cash_flow_diff_usd)}`}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(base.lifetime_net_cash_flow, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{formatCurrency(scen.lifetime_net_cash_flow, currency)}</td>
+              <td style={{ padding: "0.6rem 0.5rem" }}>{delta.lifetime_cash_flow_diff_usd > 0 ? `+${currSym}${delta.lifetime_cash_flow_diff_usd}` : `-${currSym}${Math.abs(delta.lifetime_cash_flow_diff_usd)}`}</td>
               <td style={{ padding: "0.6rem 0.5rem" }}>{delta.lifetime_cash_flow_diff_pct}%</td>
             </tr>
           </tbody>

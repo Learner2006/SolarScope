@@ -2,8 +2,8 @@
 
 > High-precision, interactive solar feasibility, time-series generation modeling, financial payback calculation, and baseline-isolated sensitivity analysis.
 
-[![Backend Tests](https://img.shields.io/badge/backend%20tests-25%20passed-emerald)](https://github.com)
-[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-9%20passed-emerald)](https://github.com)
+[![Backend Tests](https://img.shields.io/badge/backend%20tests-64%20passed-emerald)](https://github.com)
+[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-44%20passed-emerald)](https://github.com)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 ---
@@ -173,11 +173,90 @@ npm run test
 
 ---
 
-## 7. Data Provenance & Academic Citation
+## 7. Data Provenance & Source Separation
 
-Solar generation data is sourced from **Renewables.ninja** using NASA MERRA-2 satellite and atmospheric reanalysis.
+SolarScope implements three distinct simulation pathways, strictly separated in code and labeled across all reports and UI views:
 
-Please cite:
-> **S. Pfenninger and I. Staffell (2016).** *Long-term patterns of European PV output using 30 years of validated hourly reanalysis and satellite data.* Energy, 114, 1251–1265. DOI: [10.1016/j.energy.2016.08.060](https://doi.org/10.1016/j.energy.2016.08.060).
+1. **Local Offline Benchmark Fixture (San Francisco 2019 baseline)**: An 8,760-hour synthetic reference dataset (1 kW, 10% loss) for repeatable offline development, regression calibration, and automated testing. It yields 901.18 kWh/kW (10.29% CF) due to embedded synthetic attenuation. It is never attributed to MERRA-2 historical satellite reanalysis.
+2. **SolarScope Astronomical Clear-Sky Model**: Pure Python celestial geometry and optical air mass engine (Duffie & Beckman solar geometry, Kasten-Young 1989 air mass) providing theoretical, cloudless insolation estimates for arbitrary global coordinates without external API keys.
+3. **Live Renewables.ninja API Integration**: Used strictly when `RENEWABLES_NINJA_TOKEN` is configured in `.env`, retrieving NASA MERRA-2 reanalysis under CC BY-NC 4.0:
+   > **S. Pfenninger and I. Staffell (2016).** *Long-term patterns of European PV output using 30 years of validated hourly reanalysis and satellite data.* Energy, 114, 1251–1265. DOI: [10.1016/j.energy.2016.08.060](https://doi.org/10.1016/j.energy.2016.08.060).
 
-Data distributed under the Creative Commons Attribution-NonCommercial 4.0 International license (**CC BY-NC 4.0**).
+---
+
+## 8. Production Deployment & Secure CORS Configuration
+
+SolarScope supports both single-domain reverse-proxy deployments and decoupled static frontend + standalone API architectures with provider-independent environment configuration.
+
+### Environment Variables Reference
+
+#### Backend Service Environment Variables
+
+| Variable | Required in Prod | Default | Description |
+| :--- | :---: | :--- | :--- |
+| `ENVIRONMENT` | **Yes** | `development` | Set to `production` in live environments. When set to `production`, wildcard CORS origins (`*`) are strictly blocked at startup, and localhost origins/regexes are not automatically injected. |
+| `BACKEND_CORS_ORIGINS` | **Yes** | `[]` (prod)<br>`localhost:*` (dev) | Comma-separated list of allowed frontend origins (e.g., `https://solarscope.example.com,https://app.solarscope.example.com`). Trailing slashes and whitespace are automatically normalized. *(Legacy alias `CORS_ORIGINS` is also supported).* |
+| `RENEWABLES_NINJA_TOKEN` | *Optional* | `None` | **Backend-Only Secret**. Token for NASA MERRA-2 live satellite reanalysis. **Never expose this to frontend variables, client bundles, logs, or API responses.** If omitted, the engine uses theoretical astronomical clear-sky and benchmark fixture models. |
+| `HOST` | *Optional* | `127.0.0.1` | Set to `0.0.0.0` in containerized environments (Docker, Cloud Run, Render, Fly.io). |
+| `PORT` | *Optional* | `8000` | Backend listening port (many PaaS providers like Render/Railway/Fly automatically inject `$PORT`). |
+| `MAX_CONCURRENT_SIMULATIONS`| *Optional* | `20` | Max simultaneous simulation runs before returning HTTP 429 concurrency throttling. |
+
+#### Frontend Build-Time Environment Variables
+
+| Variable | Required in Prod | Default | Description |
+| :--- | :---: | :--- | :--- |
+| `VITE_API_BASE_URL` | *Conditional* | `/api` | Base URL of the deployed backend API (e.g., `https://api.solarscope.example.com` or `https://backend.onrender.com`). Required when frontend and backend are hosted on separate domains/providers. Defaults to `/api` for same-domain reverse proxies and local dev Vite proxy. |
+
+> [!IMPORTANT]
+> **Vite Build-Time Baking**: `VITE_API_BASE_URL` is baked into the frontend JavaScript bundle at **build time** (`npm run build`). Always set this variable in your frontend hosting dashboard *before* triggering the deployment build.
+>
+> **Secret Boundary**: Vite strictly bundles variables prefixed with `VITE_`. `RENEWABLES_NINJA_TOKEN` does not use the `VITE_` prefix and is never bundled into client assets.
+
+---
+
+### Provider-Agnostic Hosting Guide
+
+#### Architecture A: Decoupled Services (Recommended for Jamstack / Cloud PaaS)
+*Frontend on static CDN (e.g., Vercel, Netlify, Cloudflare Pages, AWS S3/CloudFront); Backend on container/PaaS (e.g., Render, Railway, Fly.io, GCP Cloud Run, AWS App Runner).*
+
+1. **Deploy Backend Service**:
+   - Build/Docker command: `pip install -r backend/requirements.txt`
+   - Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+   - Configure Backend Environment Variables in hosting dashboard:
+     ```ini
+     ENVIRONMENT=production
+     BACKEND_CORS_ORIGINS=https://<your-frontend-domain>
+     RENEWABLES_NINJA_TOKEN=<your-upstream-secret-token>  # Encrypted secret
+     ```
+   - Copy your assigned backend URL (e.g., `https://solarscope-api.example.com`).
+
+2. **Deploy Frontend Service**:
+   - Root directory: `frontend`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+   - Configure Frontend Environment Variable in hosting dashboard:
+     ```ini
+     VITE_API_BASE_URL=https://solarscope-api.example.com
+     ```
+   - Trigger build. Browser preflight `OPTIONS` requests from your frontend origin will receive `200 OK` with verified `Access-Control-Allow-Origin`.
+
+#### Architecture B: Single-Domain Unified Deployment (Reverse Proxy)
+*Frontend and backend served under the same origin via Nginx, Traefik, or Caddy.*
+
+- Reverse proxy routes `/api/*` to the internal backend (`http://backend:8000`) and all other routes to the static `dist/` directory.
+- `VITE_API_BASE_URL` can be omitted (defaults to relative `/api`).
+- `BACKEND_CORS_ORIGINS` can be set to the unified domain or left empty (same-origin requests do not trigger CORS preflight).
+
+---
+
+## 9. Deployment Architecture, Security & Archiving
+
+### Local-Only Engineering Deployment Notice
+SolarScope is architected as an offline/local engineering workstation. Multi-user authentication, tenant isolation, and session-scoped access controls are intentionally not implemented. **The application must not be exposed to public networks** without external reverse-proxy authentication (OAuth2/OIDC), TLS termination, and database-backed multi-tenant session storage.
+
+### Safe Source Distribution Archiving
+To prevent credentials (`.env`), macOS metadata (`__MACOSX`, `.DS_Store`), or build artifacts (`frontend/dist`) from being inadvertently bundled into distribution archives, use the safe archiver script:
+```bash
+./scripts/create_archive.sh [output_path.zip]
+```
+This utility uses git attributes (`.gitattributes export-ignore`) and strict exclusion patterns with automated archive content verification.

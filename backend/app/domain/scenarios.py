@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Optional
-from backend.app.domain.financials import FinancialAnalysisResult, calculate_financials
+from backend.app.domain.financials import (
+    FinancialAnalysisResult,
+    calculate_financials,
+    get_currency_symbol,
+)
 from backend.app.domain.generation import GenerationSummary
 
 
@@ -73,17 +77,23 @@ def evaluate_scenario(
     """
     warnings: List[str] = []
 
-    # Calculate adjusted generation
+    # Architectural Decision / Baseline Immutability:
+    # Sensitivity scenarios never mutate baseline generation time-series or financial records.
+    # Instead, we evaluate financial formulas with parametric overrides against the baseline totals.
+    # This keeps scenarios lightweight, instantaneous (<5ms), and safe from race conditions when
+    # users rapidly test multiple alternative assumptions.
+
+    # Parameter Isolation:
+    # Overrides are applied independently. A generation stress test (e.g. shading risk) does not
+    # inadvertently alter tariffs or capex unless those overrides are explicitly provided.
     adj_generation_kwh = baseline_generation.total_generation_kwh * parameters.generation_multiplier
 
-    # Cost
     adj_cost = (
         parameters.installation_cost_override
         if parameters.installation_cost_override is not None
         else baseline_financials.installation_cost
     )
 
-    # Tariffs
     adj_import_tariff = (
         parameters.import_tariff_override
         if parameters.import_tariff_override is not None
@@ -95,7 +105,6 @@ def evaluate_scenario(
         else baseline_financials.export_tariff
     )
 
-    # Self-consumption
     adj_self_consumption = (
         parameters.self_consumption_override
         if parameters.self_consumption_override is not None
@@ -112,13 +121,16 @@ def evaluate_scenario(
         annual_maintenance_cost=baseline_financials.annual_maintenance_cost,
         project_lifetime_years=baseline_financials.project_lifetime_years,
         period_hours=baseline_generation.period_hours,
+        currency_code=baseline_financials.currency_code,
     )
 
     # Calculate deltas
-    gen_diff_kwh = round(adj_generation_kwh - baseline_generation.total_generation_kwh, 2)
+    gen_diff_kwh = round(
+        scenario_financials.total_generation_kwh - baseline_financials.total_generation_kwh, 2
+    )
     gen_diff_pct = (
-        round((gen_diff_kwh / baseline_generation.total_generation_kwh) * 100.0, 1)
-        if baseline_generation.total_generation_kwh > 0
+        round((gen_diff_kwh / baseline_financials.total_generation_kwh) * 100.0, 1)
+        if baseline_financials.total_generation_kwh > 0
         else 0.0
     )
 
@@ -153,15 +165,20 @@ def evaluate_scenario(
         else 0.0
     )
 
-    # Human-readable summary
+    # Human-readable summary with active currency symbol
+    curr_sym = get_currency_symbol(baseline_financials.currency_code)
     summary_parts = []
     if gen_diff_pct != 0:
         summary_parts.append(f"generation {'+' if gen_diff_pct > 0 else ''}{gen_diff_pct}%")
     if adj_cost != baseline_financials.installation_cost:
         cost_diff = adj_cost - baseline_financials.installation_cost
-        summary_parts.append(f"cost {'+$' if cost_diff > 0 else '-$'}{abs(cost_diff):.0f}")
+        summary_parts.append(f"cost {'+' if cost_diff > 0 else '-'}{curr_sym}{abs(cost_diff):.0f}")
     if adj_import_tariff != baseline_financials.import_tariff:
-        summary_parts.append(f"import tariff ${adj_import_tariff:.3f}/kWh")
+        summary_parts.append(f"import tariff {curr_sym}{adj_import_tariff:.3f}/kWh")
+    if adj_export_tariff != baseline_financials.export_tariff:
+        summary_parts.append(f"export tariff {curr_sym}{adj_export_tariff:.3f}/kWh")
+    if adj_self_consumption != baseline_financials.self_consumption_ratio:
+        summary_parts.append(f"self-consumption {adj_self_consumption * 100:.0f}%")
 
     changes_str = ", ".join(summary_parts) if summary_parts else "specified parameter adjustments"
 
@@ -175,8 +192,9 @@ def evaluate_scenario(
     else:
         payback_msg = f"payback status: {scenario_financials.payback_status}"
 
+    net_sign = "+" if net_diff_usd >= 0 else "-"
     summary_message = (
-        f"Under {changes_str}, net annual savings change by ${net_diff_usd:+.2f}/yr, which {payback_msg}."
+        f"Under {changes_str}, net annual savings change by {net_sign}{curr_sym}{abs(net_diff_usd):.2f}/yr, which {payback_msg}."
     )
 
     delta = ScenarioDelta(

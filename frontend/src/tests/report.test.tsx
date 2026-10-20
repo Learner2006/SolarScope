@@ -134,13 +134,46 @@ describe("ReportDocument Component", () => {
     },
     model_limitations: ["Physical roof integrity must be surveyed on-site."],
     data_quality_warnings: [],
-    conclusions: ["Strong economic feasibility with simple payback in 5.2 years."],
+    conclusions: [
+      "Under the stated financial assumptions, the modeled simple payback is approximately 5.2 years, within the assumed 25-year project lifetime.",
+    ],
   };
 
-  it("renders report with accurate run ID and conclusions", () => {
+  it("renders report with accurate run ID, cautious conclusion wording, and canonical LCOE", () => {
     render(<ReportDocument report={mockReport} />);
     expect(screen.getByText(/test-run-uuid-12345/i)).toBeInTheDocument();
-    expect(screen.getByText(/Strong economic feasibility/i)).toBeInTheDocument();
+    expect(screen.getByText(/Under the stated financial assumptions, the modeled simple payback is approximately 5.2 years/i)).toBeInTheDocument();
     expect(screen.getByText(/Pfenninger & Staffell/i)).toBeInTheDocument();
+
+    // Verify canonical LCOE displayed in system & economic parameters table
+    expect(screen.getByText("$ 0.050/kWh")).toBeInTheDocument();
+    expect(screen.getByText("Modeled Currency:")).toBeInTheDocument();
+    expect(screen.getByText("USD ($)")).toBeInTheDocument();
+  });
+
+  it("renders all five numbered sections in sequence with no missing section 3 when scenarios are empty", () => {
+    render(<ReportDocument report={mockReport} />);
+
+    // Verify sections 1 through 5 are all rendered in continuous order
+    expect(screen.getByText(/1\. System Configuration & Economic Parameters/i)).toBeInTheDocument();
+    expect(screen.getByText(/2\. Monthly Solar Generation Breakdown/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\. Evaluated Sensitivity Scenarios/i)).toBeInTheDocument();
+    expect(screen.getByText(/4\. Formulas & Calculation Methodology/i)).toBeInTheDocument();
+    expect(screen.getByText(/5\. Known Limitations & Technical Scope/i)).toBeInTheDocument();
+
+    // Verify empty scenario informative message
+    expect(
+      screen.getByText(/No sensitivity scenarios evaluated for this run/i)
+    ).toBeInTheDocument();
+  });
+
+  it("renders provenance labels with proper traceability metadata in ProvenanceTable", () => {
+    render(<ReportDocument report={mockReport} />);
+
+    expect(screen.getByText("Source Mode:")).toBeInTheDocument();
+    expect(screen.getByText("Dataset / Methodology:")).toBeInTheDocument();
+    expect(screen.getByText("Retrieval Timestamp:")).toBeInTheDocument();
+    expect(screen.getByText("Coordinates Evaluated:")).toBeInTheDocument();
+    expect(screen.getByText("Attribution Citation:")).toBeInTheDocument();
   });
 });

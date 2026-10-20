@@ -1,18 +1,25 @@
 import React, { ReactNode } from "react";
 import { Header } from "./Header";
 import { useAnalysis } from "../../state/AnalysisContext";
+import { getFooterAttribution } from "../../utils/provenance";
 
 export const AppShell: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { navigateTo } = useAnalysis();
+  const { navigateTo, currentAnalysis } = useAnalysis();
+  const attribution = getFooterAttribution(currentAnalysis?.generation.provenance);
 
   return (
     <div className="app-shell">
       <Header />
       <main className="main-content">{children}</main>
       <footer className="app-footer">
-        <div className="footer-citation">
-          <strong>Methodology & Attribution:</strong> Solar simulation data powered by Renewables.ninja / MERRA-2.
-          Citation: S. Pfenninger and I. Staffell (2016), <em>Energy</em> 114, 1251–1265. CC BY-NC 4.0 license.
+        <div className="footer-citation" data-testid="footer-attribution">
+          <strong>{attribution.lead}</strong> {attribution.detail}
+          {attribution.citation && (
+            <span>
+              {" "}Citation: {attribution.citation}
+              {attribution.license && <span> {attribution.license}</span>}
+            </span>
+          )}
         </div>
         <div>
           <button

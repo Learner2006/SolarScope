@@ -14,6 +14,7 @@ export interface ScopeInput {
   self_consumption_pct: number;
   annual_maintenance_cost: number;
   project_lifetime_years: number;
+  currency_code?: string;
 }
 
 export interface MonthlyMetric {
@@ -104,6 +105,7 @@ export interface FinancialResponse {
   lifetime_net_cash_flow: number;
   roi_percentage: number;
   lcoe_per_kwh: number;
+  currency_code?: string;
   cash_flow_timeline: CashFlowPoint[];
   warnings: string[];
 }

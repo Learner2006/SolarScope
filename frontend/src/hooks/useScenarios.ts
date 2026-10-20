@@ -8,6 +8,13 @@ export function useScenarios() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const executeScenario = async (request: ScenarioRequest): Promise<ScenarioResponse | null> => {
+    // If preset scenario was already evaluated, activate it without submitting duplicate request
+    const existing = currentAnalysis?.scenarios?.[request.scenario_id];
+    if (existing) {
+      setActiveScenarioId(request.scenario_id);
+      return existing;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await runScenario(request);

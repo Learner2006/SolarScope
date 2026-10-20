@@ -7,7 +7,25 @@ import {
   ScopeInput,
 } from "../types/analysis";
 
-const API_BASE = "/api";
+/**
+ * Resolves the backend API base endpoint.
+ *
+ * In local development and single-origin deployments (Nginx / Caddy reverse proxy),
+ * this falls back to "/api" which uses relative URLs or the Vite dev proxy.
+ *
+ * In decoupled production deployments (e.g., static CDN frontend communicating with
+ * a standalone API service), the VITE_API_BASE_URL build environment variable can be set
+ * (e.g., "https://solarscope-api.onrender.com" or "https://api.yourdomain.com").
+ */
+export function resolveApiBase(envBaseUrl?: string): string {
+  const raw = (envBaseUrl !== undefined ? envBaseUrl : (import.meta.env.VITE_API_BASE_URL || "")).trim().replace(/\/+$/, "");
+  if (!raw) {
+    return "/api";
+  }
+  return raw.endsWith("/api") ? raw : `${raw}/api`;
+}
+
+export const API_BASE = resolveApiBase();
 
 export class ApiError extends Error {
   status: number;

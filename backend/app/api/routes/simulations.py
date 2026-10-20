@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from backend.app.api.schemas.generation import GenerationResponseSchema
 from backend.app.api.schemas.scope import ScopeInputSchema
 from backend.app.services.generation_service import generation_service
+from backend.app.services.renewables_ninja import UpstreamServiceError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Simulations"])
 
@@ -22,7 +26,12 @@ async def simulate_solar(
             force_fixture=force_fixture,
         )
         return gen_response
+    except HTTPException:
+        raise
+    except UpstreamServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+        logger.exception("Unexpected error during simulation: %s", e)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while calculating solar generation.")

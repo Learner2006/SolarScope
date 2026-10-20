@@ -28,7 +28,7 @@ export const MonthlyGenerationChart: React.FC<MonthlyGenerationChartProps> = ({
         <div>
           <h3 style={{ fontSize: "1.05rem", fontWeight: 600 }}>Monthly Solar PV Generation Breakdown</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-            Click any month to inspect its actual modeled hourly generation profile.
+            Click any month to inspect its modeled hourly generation profile.
           </p>
         </div>
         {selectedMonth && (

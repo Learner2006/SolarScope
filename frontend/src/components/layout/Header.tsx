@@ -1,6 +1,7 @@
 import React from "react";
 import { Sun, FileText, BarChart2, GitFork, BookOpen, Layers } from "lucide-react";
 import { ScreenName, useAnalysis } from "../../state/AnalysisContext";
+import { getProvenanceBadge } from "../../utils/provenance";
 
 export const Header: React.FC = () => {
   const { activeScreen, navigateTo, currentAnalysis } = useAnalysis();
@@ -74,11 +75,17 @@ export const Header: React.FC = () => {
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
         {currentAnalysis ? (
-          <span className={`badge ${currentAnalysis.generation.provenance.is_live_retrieval ? "badge-emerald" : "badge-amber"}`}>
-            {currentAnalysis.generation.provenance.is_live_retrieval ? "● Live Ninja API" : "● Benchmark Fixture"}
+          <span
+            className={`badge ${getProvenanceBadge(currentAnalysis.generation.provenance).className}`}
+            title={getProvenanceBadge(currentAnalysis.generation.provenance).tooltip}
+            data-testid="header-provenance-badge"
+          >
+            {getProvenanceBadge(currentAnalysis.generation.provenance).label}
           </span>
         ) : (
-          <span className="badge badge-neutral">Ready to Analyze</span>
+          <span className="badge badge-neutral" data-testid="header-provenance-badge">
+            Ready to Analyze
+          </span>
         )}
       </div>
     </header>

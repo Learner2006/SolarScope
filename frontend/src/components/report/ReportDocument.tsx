@@ -1,7 +1,7 @@
 import React from "react";
 import { ReportResponse } from "../../types/analysis";
 import { ProvenanceTable } from "./ProvenanceTable";
-import { formatCurrency, formatNumber, formatPercent, formatDate } from "../../utils/formatting";
+import { formatCurrency, formatNumber, formatPercent, formatDate, getCurrencySymbol, formatCoordinates } from "../../utils/formatting";
 import { Printer, Sun } from "lucide-react";
 
 interface ReportDocumentProps {
@@ -22,6 +22,9 @@ export const ReportDocument: React.FC<ReportDocumentProps> = ({ report }) => {
     data_quality_warnings,
     conclusions,
   } = report;
+
+  const currency = scope.currency_code || financials.currency_code || "USD";
+  const currSym = getCurrencySymbol(currency);
 
   const handlePrint = () => {
     window.print();
@@ -65,7 +68,7 @@ export const ReportDocument: React.FC<ReportDocumentProps> = ({ report }) => {
           </span>
         </div>
         <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-          Site Feasibility Evaluation for <strong>{scope.location_name || "Custom Site"}</strong> ({scope.latitude.toFixed(4)}° N, {scope.longitude.toFixed(4)}° E)
+          Site Feasibility Evaluation for <strong>{scope.location_name || "Custom Site"}</strong> ({formatCoordinates(scope.latitude, scope.longitude)})
         </div>
       </div>
 
@@ -117,21 +120,33 @@ export const ReportDocument: React.FC<ReportDocumentProps> = ({ report }) => {
           <tbody>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)", width: "35%" }}>Installation Capital Cost:</td>
-              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.installation_cost)}</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.installation_cost, currency)}</td>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)", width: "35%" }}>Electricity Import Tariff:</td>
-              <td style={{ padding: "0.5rem", fontWeight: 600 }}>${financials.import_tariff.toFixed(3)}/kWh</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{currSym} {financials.import_tariff.toFixed(3)}/kWh</td>
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Grid Export Tariff:</td>
-              <td style={{ padding: "0.5rem", fontWeight: 600 }}>${financials.export_tariff.toFixed(3)}/kWh</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{currSym} {financials.export_tariff.toFixed(3)}/kWh</td>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Self-Consumption Ratio:</td>
               <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatPercent(financials.self_consumption_ratio, true)}</td>
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Annual Maintenance & O&M:</td>
-              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.annual_maintenance_cost)}/yr</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.annual_maintenance_cost, currency)}/yr</td>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Project Lifetime:</td>
               <td style={{ padding: "0.5rem", fontWeight: 600 }}>{financials.project_lifetime_years} years</td>
+            </tr>
+            <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Modeled Currency:</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{currency} ({currSym})</td>
+              <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Levelized Cost (LCOE):</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{currSym} {financials.lcoe_per_kwh.toFixed(3)}/kWh</td>
+            </tr>
+            <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Net Annual Benefit:</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.net_annual_benefit, currency)}/yr</td>
+              <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Lifetime Net Profit (Undiscounted):</td>
+              <td style={{ padding: "0.5rem", fontWeight: 600 }}>{formatCurrency(financials.lifetime_net_cash_flow, currency)} (ROI: {(financials.roi_percentage ?? 0).toFixed(1)}%)</td>
             </tr>
             <tr>
               <td style={{ padding: "0.5rem", color: "var(--text-tertiary)" }}>Panel Tilt & Azimuth:</td>
@@ -172,13 +187,13 @@ export const ReportDocument: React.FC<ReportDocumentProps> = ({ report }) => {
         </table>
       </div>
 
-      {/* Scenarios Section if any */}
-      {scenarios.length > 0 && (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <h4 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            3. Evaluated Sensitivity Scenarios
-          </h4>
-          {scenarios.map((s) => (
+      {/* Scenarios Section */}
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <h4 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+          3. Evaluated Sensitivity Scenarios
+        </h4>
+        {scenarios.length > 0 ? (
+          scenarios.map((s) => (
             <div key={s.scenario_id} style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
                 <strong>{s.scenario_name}</strong>
@@ -186,9 +201,13 @@ export const ReportDocument: React.FC<ReportDocumentProps> = ({ report }) => {
               </div>
               <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>{s.description}</p>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontStyle: "italic", margin: 0 }}>
+            No sensitivity scenarios evaluated for this run. To test tariff inflation, cost overruns, or shading risks, configure scenarios on the Scenarios page.
+          </p>
+        )}
+      </div>
 
       {/* Mathematical Formulas Used */}
       <div className="card" style={{ marginBottom: "1.5rem" }}>

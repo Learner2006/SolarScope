@@ -16,25 +16,31 @@ export const ProvenanceTable: React.FC<ProvenanceTableProps> = ({ provenance }) 
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", fontSize: "0.8125rem" }}>
         <div>
-          <span style={{ color: "var(--text-tertiary)", display: "block" }}>Source Mode:</span>
-          <strong>{provenance.is_live_retrieval ? "Renewables.ninja Live HTTP API" : "Local Verified Benchmark Fixture"}</strong>
+          <span style={{ color: "var(--text-tertiary)", display: "block", marginBottom: "0.25rem" }}>Source Mode:</span>
+          <strong>
+            {provenance.is_live_retrieval
+              ? "Renewables.ninja Live HTTP API"
+              : provenance.source_type === "solarscope_astronomical_model"
+              ? "SolarScope Astronomical Clear-Sky Model"
+              : "Offline Synthetic Benchmark Fixture (San Francisco 2019)"}
+          </strong>
         </div>
         <div>
-          <span style={{ color: "var(--text-tertiary)", display: "block" }}>Weather Dataset:</span>
-          <strong>{provenance.dataset_name.toUpperCase()} Reanalysis</strong>
+          <span style={{ color: "var(--text-tertiary)", display: "block", marginBottom: "0.25rem" }}>Dataset / Methodology:</span>
+          <strong>{provenance.dataset_name}</strong>
         </div>
         <div>
-          <span style={{ color: "var(--text-tertiary)", display: "block" }}>Retrieval Timestamp:</span>
+          <span style={{ color: "var(--text-tertiary)", display: "block", marginBottom: "0.25rem" }}>Retrieval Timestamp:</span>
           <strong>{provenance.retrieval_timestamp}</strong>
         </div>
         <div>
-          <span style={{ color: "var(--text-tertiary)", display: "block" }}>Coordinates Evaluated:</span>
+          <span style={{ color: "var(--text-tertiary)", display: "block", marginBottom: "0.25rem" }}>Coordinates Evaluated:</span>
           <strong>{provenance.coordinates_used}</strong>
         </div>
       </div>
 
       <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-subtle)", fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
-        <strong>Attribution Citation:</strong> {provenance.attribution}
+        <strong>Attribution Citation:</strong>{" "}{provenance.attribution?.trim()}
       </div>
     </div>
   );

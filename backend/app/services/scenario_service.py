@@ -19,15 +19,31 @@ from backend.app.repositories.analysis_repository import analysis_repo
 class ScenarioService:
     """Manages baseline-isolated sensitivity scenarios and deltas."""
 
+    def get_scenario(self, analysis_id: str, scenario_id: str) -> Optional[dict]:
+        """Retrieve an existing scenario by ID from an analysis record."""
+        record = analysis_repo.get(analysis_id)
+        if not record:
+            return None
+        return record.get("scenarios", {}).get(scenario_id)
+
     def run_scenario(
         self,
         analysis_id: str,
         request: ScenarioRequestSchema,
+        auto_id: bool = False,
     ) -> Optional[ScenarioResponseSchema]:
         """Evaluate a scenario against an existing baseline run without mutating it."""
         record = analysis_repo.get(analysis_id)
         if not record:
             return None
+
+        # Determine effective scenario ID, auto-incrementing if requested to avoid collisions
+        target_scenario_id = request.scenario_id
+        if auto_id and target_scenario_id in record.get("scenarios", {}):
+            counter = 2
+            while f"{request.scenario_id}_{counter}" in record.get("scenarios", {}):
+                counter += 1
+            target_scenario_id = f"{request.scenario_id}_{counter}"
 
         domain_gen = record["domain_gen"]
         domain_fin = record["domain_fin"]
@@ -42,7 +58,7 @@ class ScenarioService:
             self_consumption_ratio = request.self_consumption_pct_override / 100.0
 
         params = ScenarioParameters(
-            scenario_id=request.scenario_id,
+            scenario_id=target_scenario_id,
             scenario_name=request.scenario_name,
             description=request.description,
             generation_multiplier=gen_mult,
@@ -91,6 +107,7 @@ class ScenarioService:
             lifetime_net_cash_flow=comparison.scenario_financials.lifetime_net_cash_flow,
             roi_percentage=comparison.scenario_financials.roi_percentage,
             lcoe_per_kwh=comparison.scenario_financials.lcoe_per_kwh,
+            currency_code=comparison.scenario_financials.currency_code,
             cash_flow_timeline=scenario_cf_schemas,
             warnings=comparison.scenario_financials.warnings,
         )
@@ -118,7 +135,7 @@ class ScenarioService:
         )
 
         # Store scenario in analysis record
-        analysis_repo.save_scenario(analysis_id, request.scenario_id, response.model_dump())
+        analysis_repo.save_scenario(analysis_id, comparison.scenario_id, response.model_dump())
 
         return response
 

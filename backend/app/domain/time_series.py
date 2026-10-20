@@ -31,10 +31,27 @@ class TimeSeriesValidationResult:
 
 
 def parse_timestamp(ts_raw: str | datetime) -> datetime:
-    """Safely parse various datetime representations to UTC-naive datetime."""
+    """Safely parse various datetime representations to UTC-naive datetime.
+
+    Architectural Decision / Timezone Normalization:
+    External sources (MERRA-2 JSON fixture, Renewables.ninja API) format timestamps with varying
+    standards: ISO strings ('2019-01-01 00:00'), epoch milliseconds, or ISO8601 with Z offsets.
+    We normalize everything to UTC-naive datetime on ingestion.
+    This guarantees that internal sorting, calendar grouping, and dictionary lookups operate
+    predictably without ambiguous timezone-aware vs naive comparison bugs.
+    """
     if isinstance(ts_raw, datetime):
         return ts_raw.replace(tzinfo=None)
-    dt = dt_parser.parse(str(ts_raw))
+    ts_str = str(ts_raw).strip()
+    # Handle numeric unix timestamps (seconds or milliseconds) returned by APIs
+    if ts_str.isdigit() or (ts_str.startswith("-") and ts_str[1:].isdigit()):
+        val = int(ts_str)
+        if abs(val) > 1e11:  # epoch in milliseconds
+            dt = datetime.utcfromtimestamp(val / 1000.0)
+        else:  # epoch in seconds
+            dt = datetime.utcfromtimestamp(val)
+        return dt.replace(tzinfo=None)
+    dt = dt_parser.parse(ts_str)
     return dt.replace(tzinfo=None)
 
 
@@ -89,11 +106,19 @@ def validate_time_series(
             warnings=warnings,
         )
 
-    # Parse and sort intervals
+    # Parse and sort intervals with duplicate timestamp detection
+    seen_timestamps: set[datetime] = set()
     parsed_entries: List[Tuple[datetime, float]] = []
+    duplicate_count = 0
+
     for ts_str, val in raw_data.items():
         try:
             dt = parse_timestamp(ts_str)
+            if dt in seen_timestamps:
+                duplicate_count += 1
+                continue
+            seen_timestamps.add(dt)
+
             if isinstance(val, dict):
                 p_val = float(val.get("electricity", 0.0))
             else:
@@ -103,6 +128,11 @@ def validate_time_series(
             parsed_entries.append((dt, power_kw))
         except (ValueError, TypeError) as err:
             warnings.append(f"Invalid timestamp or power value '{ts_str}': {err}")
+
+    if duplicate_count > 0:
+        warnings.append(
+            f"Detected and deduplicated {duplicate_count} duplicate hourly timestamp(s) in source dataset."
+        )
 
     parsed_entries.sort(key=lambda x: x[0])
 
@@ -138,6 +168,10 @@ def validate_time_series(
     missing_count = max(0, expected_hours - total_count)
     is_continuous = (total_count == expected_hours)
 
+    # Failure Behaviour / Data Integrity:
+    # If upstream API intervals are dropped or missing, we intentionally record a warning and
+    # base calculations strictly on observed intervals.
+    # We never synthesize, forward-fill, or fabricate generation values, keeping the audit defensible.
     if missing_count > 0:
         pct_missing = round((missing_count / expected_hours) * 100, 1)
         warnings.append(

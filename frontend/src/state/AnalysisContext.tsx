@@ -50,20 +50,21 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setExecutionStage("validating");
 
     try {
-      // Stage 1: Validation
+      // UX Decision / Perceived Execution Flow:
+      // Local FastAPI analysis executes in ~30ms. We introduce brief micro-delays (200ms)
+      // across stages ("validating" -> "fetching_data" -> "calculating_financials") so users can
+      // visually track the pipeline execution rather than experiencing a disorienting 0ms flash of content.
       await new Promise((r) => setTimeout(r, 200));
 
-      // Stage 2: Fetching data
       setExecutionStage("fetching_data");
       const result = await createAnalysis(scope, forceFixture);
 
-      // Stage 3: Aggregating & calculating
       setExecutionStage("calculating_financials");
       await new Promise((r) => setTimeout(r, 200));
 
       setCurrentAnalysis(result);
       setExecutionStage("complete");
-      // Set initial drilldown month to the peak month
+      // Default interactive diurnal chart to the highest-yielding month for immediate insight.
       setSelectedMonthForDrilldown(result.generation.strongest_month.month);
       setActiveScreen("analysis");
     } catch (err: any) {
@@ -79,6 +80,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const runScenario = async (request: ScenarioRequest): Promise<ScenarioResponse | null> => {
     if (!currentAnalysis) return null;
     try {
+      setExecutionError(null);
       const scenarioRes = await apiCreateScenario(currentAnalysis.analysis_id, request);
       // Update local analysis state to include this scenario without mutating baseline
       setCurrentAnalysis((prev) => {
@@ -87,13 +89,23 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           ...prev,
           scenarios: {
             ...prev.scenarios,
-            [request.scenario_id]: scenarioRes,
+            [scenarioRes.scenario_id]: scenarioRes,
           },
         };
       });
       return scenarioRes;
     } catch (err: any) {
-      alert(`Scenario evaluation failed: ${err.message}`);
+      if (err instanceof ApiError && err.status === 404) {
+        setExecutionError(
+          "Analysis session expired or was evicted from repository memory. Please return to Scope and re-run the simulation."
+        );
+      } else if (err instanceof ApiError && err.status === 409) {
+        setExecutionError(
+          `Scenario conflict: ${err.detail || "A scenario with this identifier already exists."}`
+        );
+      } else {
+        setExecutionError(err.detail || err.message || "Scenario evaluation failed.");
+      }
       return null;
     }
   };

@@ -42,6 +42,7 @@ class AnalysisService:
             annual_maintenance_cost=scope.annual_maintenance_cost,
             project_lifetime_years=scope.project_lifetime_years,
             period_hours=domain_gen.period_hours,
+            currency_code=scope.currency_code,
         )
 
         # 3. Format financial response
@@ -77,6 +78,7 @@ class AnalysisService:
             lifetime_net_cash_flow=domain_fin.lifetime_net_cash_flow,
             roi_percentage=domain_fin.roi_percentage,
             lcoe_per_kwh=domain_fin.lcoe_per_kwh,
+            currency_code=domain_fin.currency_code,
             cash_flow_timeline=cash_flow_schemas,
             warnings=domain_fin.warnings,
         )

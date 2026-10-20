@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
+from backend.app.config import settings
 
 
 class ScopeInputSchema(BaseModel):
     """User-configured scope for a solar feasibility run."""
     location_name: Optional[str] = Field(
         default="San Francisco, CA",
+        max_length=200,
         description="Descriptive location name or address",
     )
     latitude: float = Field(
@@ -60,20 +62,20 @@ class ScopeInputSchema(BaseModel):
     installation_cost: float = Field(
         default=7500.0,
         ge=0.0,
-        le=2_000_000.0,
-        description="Turnkey total installation and hardware capital cost in USD",
+        le=50_000_000.0,
+        description="Turnkey total installation and hardware capital cost in specified currency",
     )
     import_tariff: float = Field(
         default=0.28,
         ge=0.0,
-        le=5.0,
-        description="Retail electricity import price ($/kWh) offset by self-consumption",
+        le=500.0,
+        description="Retail electricity import price (currency/kWh) offset by self-consumption",
     )
     export_tariff: float = Field(
         default=0.06,
         ge=0.0,
-        le=5.0,
-        description="Feed-in tariff or export compensation ($/kWh) received for grid feed",
+        le=500.0,
+        description="Feed-in tariff or export compensation (currency/kWh) received for grid feed",
     )
     self_consumption_pct: float = Field(
         default=65.0,
@@ -84,14 +86,20 @@ class ScopeInputSchema(BaseModel):
     annual_maintenance_cost: float = Field(
         default=75.0,
         ge=0.0,
-        le=50_000.0,
-        description="Expected recurring annual maintenance and insurance ($/year)",
+        le=5_000_000.0,
+        description="Expected recurring annual maintenance and insurance (currency/year)",
     )
     project_lifetime_years: int = Field(
         default=25,
         ge=5,
         le=40,
         description="Project operational economic lifetime in years",
+    )
+    currency_code: str = Field(
+        default="USD",
+        min_length=3,
+        max_length=10,
+        description="ISO 4217 currency code for financial modeling (e.g. 'USD', 'INR', 'EUR', 'GBP')",
     )
 
     @model_validator(mode="after")
@@ -101,9 +109,9 @@ class ScopeInputSchema(BaseModel):
                 f"end_date ({self.end_date}) cannot be earlier than start_date ({self.start_date})"
             )
         total_days = (self.end_date - self.start_date).days + 1
-        if total_days > 366:
+        if total_days > settings.MAX_SIMULATION_DAYS:
             raise ValueError(
-                f"Simulation period cannot exceed 366 days (requested {total_days} days). "
+                f"Simulation period cannot exceed {settings.MAX_SIMULATION_DAYS} days (requested {total_days} days). "
                 "Renewables.ninja limits single simulations to 1 year."
             )
         return self

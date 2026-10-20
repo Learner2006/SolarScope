@@ -3,7 +3,8 @@ import { useAnalysis } from "../state/AnalysisContext";
 import { MetricCard } from "../components/analysis/MetricCard";
 import { MonthlyGenerationChart } from "../components/analysis/MonthlyGenerationChart";
 import { HourlyProfileChart } from "../components/analysis/HourlyProfileChart";
-import { formatCurrency, formatNumber } from "../utils/formatting";
+import { formatCurrency, formatNumber, getCurrencySymbol } from "../utils/formatting";
+import { getProvenanceBadge } from "../utils/provenance";
 import { FileText, GitFork, AlertTriangle } from "lucide-react";
 
 export const AnalysisPage: React.FC = () => {
@@ -32,6 +33,10 @@ export const AnalysisPage: React.FC = () => {
   }
 
   const { scope, generation, financials, all_warnings } = currentAnalysis;
+  const provenanceBadge = getProvenanceBadge(generation.provenance);
+  const currency = scope.currency_code || financials.currency_code || "USD";
+  const currSym = getCurrencySymbol(currency);
+  const isClearSky = generation.provenance.source_type === "solarscope_astronomical_model";
 
   // Selected month points
   const selectedMonthData = selectedMonthForDrilldown
@@ -56,20 +61,27 @@ export const AnalysisPage: React.FC = () => {
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
             <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>
               {scope.location_name || "Site Analysis"}
             </h1>
             <span
-              className={`badge ${
-                generation.provenance.is_live_retrieval ? "badge-emerald" : "badge-amber"
-              }`}
+              className={`badge ${provenanceBadge.className}`}
+              title={provenanceBadge.tooltip}
+              data-testid="dashboard-provenance-badge"
             >
-              {generation.provenance.is_live_retrieval ? "● Live API Data" : "● Benchmark Fixture"}
+              {provenanceBadge.label}
+            </span>
+            <span
+              className="badge badge-neutral"
+              data-testid="dashboard-currency-badge"
+              title={`Financial metrics calculated in ${currency}. Physical solar simulation is invariant to currency.`}
+            >
+              {currency} ({currSym})
             </span>
           </div>
           <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-            {scope.system_capacity_kw} kW rated PV array • {generation.period_hours.toFixed(0)} hours analyzed ({scope.start_date} to {scope.end_date})
+            {scope.system_capacity_kw} kW rated PV array • {formatNumber(generation.period_hours, 0)} modeled hours analyzed ({scope.start_date} to {scope.end_date})
           </p>
         </div>
 
@@ -120,7 +132,7 @@ export const AnalysisPage: React.FC = () => {
         }}
       >
         <MetricCard
-          title="Annual Generation"
+          title={generation.period_hours >= 8700 ? "Annual Generation" : "Period Generation"}
           value={formatNumber(generation.total_generation_kwh, 0)}
           unit="kWh"
           subtitle={`${generation.total_generation_mwh.toFixed(2)} MWh total yield`}
@@ -130,15 +142,15 @@ export const AnalysisPage: React.FC = () => {
         <MetricCard
           title="Capacity Factor"
           value={`${generation.capacity_factor_pct}%`}
-          subtitle={`Across ${generation.period_hours.toFixed(0)} actual hours`}
+          subtitle={`Across ${formatNumber(generation.period_hours, 0)} modeled hours`}
           variant="highlight"
         />
 
         <MetricCard
           title="Net Annual Benefit"
-          value={formatCurrency(financials.net_annual_benefit)}
+          value={formatCurrency(financials.net_annual_benefit, currency)}
           unit="/yr"
-          subtitle={`Gross: ${formatCurrency(financials.gross_annual_savings)} - O&M: ${formatCurrency(financials.annual_maintenance_cost)}`}
+          subtitle={`Gross: ${formatCurrency(financials.gross_annual_savings, currency)} - O&M: ${formatCurrency(financials.annual_maintenance_cost, currency)}`}
         />
 
         <MetricCard
@@ -150,16 +162,16 @@ export const AnalysisPage: React.FC = () => {
         />
 
         <MetricCard
-          title="25-Yr Net Return"
-          value={formatCurrency(financials.lifetime_net_cash_flow)}
-          subtitle={`ROI: ${financials.roi_percentage.toFixed(1)}% undiscounted`}
+          title={`${financials.project_lifetime_years}-Yr Lifetime Return`}
+          value={formatCurrency(financials.lifetime_net_cash_flow, currency)}
+          subtitle={`Net profit | ROI: ${financials.roi_percentage.toFixed(1)}% undiscounted`}
         />
 
         <MetricCard
           title="Levelized Cost (LCOE)"
-          value={`$${financials.lcoe_per_kwh.toFixed(3)}`}
+          value={`${currSym} ${financials.lcoe_per_kwh.toFixed(3)}`}
           unit="/kWh"
-          subtitle="Lifetime hardware & maintenance"
+          subtitle={`Undiscounted ${financials.project_lifetime_years}-yr capex & O&M`}
         />
       </div>
 
@@ -175,6 +187,7 @@ export const AnalysisPage: React.FC = () => {
         <HourlyProfileChart
           monthName={selectedMonthData.month_name}
           points={hourlyPoints}
+          isClearSky={isClearSky}
         />
       )}
 
@@ -192,13 +205,22 @@ export const AnalysisPage: React.FC = () => {
             Installed Configuration
           </h3>
           <ul style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.8, listStyle: "none" }}>
+            <li><strong>Financial Currency:</strong> {currency} ({currSym})</li>
+            <li><strong>Economic Model:</strong> Nominal undiscounted (constant annual yields, no panel degradation, 0% discount rate)</li>
             <li><strong>Array Capacity:</strong> {scope.system_capacity_kw} kW DC</li>
             <li><strong>Panel Orientation:</strong> {scope.tilt_degrees}° Tilt, {scope.azimuth_degrees}° Azimuth</li>
             <li><strong>System Losses:</strong> {scope.system_losses_pct}% derate</li>
             <li><strong>Self-Consumption:</strong> {scope.self_consumption_pct}% consumed on-site</li>
-            <li><strong>Import Tariff:</strong> ${scope.import_tariff.toFixed(2)}/kWh</li>
-            <li><strong>Export Tariff:</strong> ${scope.export_tariff.toFixed(2)}/kWh</li>
+            <li><strong>Turnkey Capex:</strong> {formatCurrency(financials.installation_cost, currency)}</li>
+            <li><strong>Import Tariff:</strong> {currSym}{scope.import_tariff.toFixed(2)}/kWh</li>
+            <li><strong>Export Tariff:</strong> {currSym}{scope.export_tariff.toFixed(2)}/kWh</li>
+            <li><strong>Annual O&M:</strong> {formatCurrency(financials.annual_maintenance_cost, currency)}/yr</li>
           </ul>
+          {currency === "USD" && scope.location_name && !scope.location_name.includes("San Francisco") && (
+            <p style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.5rem" }}>
+              * Illustrative financial modeling in USD ($). Electricity tariffs and hardware costs represent benchmark assumptions, not localized utility rates.
+            </p>
+          )}
         </div>
 
         <div className="card">
@@ -208,9 +230,13 @@ export const AnalysisPage: React.FC = () => {
           <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
             {generation.provenance.is_live_retrieval
               ? "Hourly power timeseries retrieved via Renewables.ninja API using atmospheric reanalysis."
-              : "Calculated using high-fidelity 8,760-hour benchmark reanalysis fixture (San Francisco solar geometry)."}
+              : generation.provenance.source_type === "solarscope_astronomical_model"
+              ? "Theoretical clear-sky hourly generation calculated via celestial solar position & air mass geometry. Does not include local historical cloud/weather reanalysis."
+              : "Calculated using verified 8,760-hour benchmark reanalysis fixture for San Francisco, CA (MERRA-2 historical baseline)."}
           </p>
           <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+            <strong>Provenance:</strong> {generation.provenance.dataset_name}
+            <br />
             <strong>Citation:</strong> {generation.provenance.attribution}
           </div>
         </div>

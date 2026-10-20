@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Tuple
+import anyio
 from backend.app.api.schemas.generation import (
     GenerationResponseSchema,
     HourlyPointSchema,
@@ -38,31 +39,40 @@ class GenerationService:
             force_fixture=force_fixture,
         )
 
-        # Validate intervals
-        intervals, val_result = validate_time_series(
-            raw_data=raw_data,
-            start_date=scope.start_date,
-            end_date=scope.end_date,
+        # Validate intervals on worker thread pool to prevent blocking the asyncio event loop
+        intervals, val_result = await anyio.to_thread.run_sync(
+            validate_time_series,
+            raw_data,
+            scope.start_date,
+            scope.end_date,
         )
 
         if "api_warning" in prov_meta:
             val_result.warnings.append(prov_meta["api_warning"])
 
-        # Disclose benchmark limitation if custom tilt/azimuth requested in benchmark mode
-        if not is_live and (abs(scope.tilt_degrees - 30.0) > 0.01 or abs(scope.azimuth_degrees - 180.0) > 0.01):
+        # Disclose benchmark fixture limitation if custom tilt/azimuth requested for fixed San Francisco fixture
+        if prov_meta.get("source_type") == "local_fixture" and (
+            abs(scope.tilt_degrees - 30.0) > 0.01 or abs(scope.azimuth_degrees - 180.0) > 0.01
+        ):
             val_result.warnings.append(
-                "Benchmark Mode Limitation: The local verified fixture represents a fixed 30° tilt and 180° South-facing "
-                "panel orientation. Dynamic angle re-simulation requires live Renewables.ninja API mode."
+                "Benchmark Fixture Limitation: The San Francisco baseline fixture was recorded with a fixed 30° tilt and "
+                "180° South-facing panel orientation. Hourly generation profile does not re-simulate incidence angles for custom tilts."
+            )
+        elif prov_meta.get("source_type") == "solarscope_astronomical_model":
+            val_result.warnings.append(
+                f"Theoretical Model Notice: Generation estimated via astronomical celestial position and clear-sky irradiance "
+                f"for {scope.tilt_degrees:.0f}° tilt and {scope.azimuth_degrees:.0f}° azimuth. Does not account for historical cloud cover or microclimate."
             )
 
-        # Aggregate generation with system losses derate
-        domain_summary = aggregate_generation(
-            intervals=intervals,
-            system_capacity_kw=scope.system_capacity_kw,
-            validation=val_result,
-            base_sim_capacity_kw=1.0,
-            system_losses_pct=scope.system_losses_pct,
-            base_system_loss_pct=10.0,
+        # Aggregate generation with system losses derate on worker thread pool
+        domain_summary = await anyio.to_thread.run_sync(
+            aggregate_generation,
+            intervals,
+            scope.system_capacity_kw,
+            val_result,
+            1.0,
+            scope.system_losses_pct,
+            10.0,
         )
 
         # Build response schema

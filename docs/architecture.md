@@ -32,9 +32,10 @@ flowchart TD
         FinService --> Repo["repositories/analysis_repository.py"]
     end
 
-    subgraph External ["Data & Fixtures"]
-        Adapter -->|If Token Set| RN_API["Renewables.ninja API (GET /api/data/pv)"]
-        Adapter -->|Offline / No Token| Fixture["data/fixtures/sample_pv_data.json"]
+    subgraph External ["Data & Simulation Pathways"]
+        Adapter -->|If Token Configured| RN_API["Renewables.ninja API (GET /api/data/pv)"]
+        Adapter -->|SF 2019 Offline Fixture| Fixture["data/fixtures/sample_pv_data.json (Synthetic Benchmark)"]
+        Adapter -->|Global Coordinates Offline| Astro["domain/solar_model.py (Clear-Sky Insolation)"]
     end
 ```
 
@@ -72,3 +73,21 @@ flowchart TD
    - Synchronized numeric sliders and inputs.
    - Recharts visualizations: monthly generation breakdown, 24-hour diurnal profile drill-down, and baseline vs scenario comparison.
    - Dedicated print stylesheet (`print.css`) for browser print-to-PDF report generation.
+
+## Concurrency, Resource Safety & Deployment Constraints
+
+1. **Event Loop Non-Blocking Execution**:
+   - All synchronous, CPU-bound numerical operations (astronomical solar position simulation across 8,760 hours, time-series interval validation, and monthly aggregations) are executed off the main asyncio thread via `anyio.to_thread.run_sync`.
+   - This ensures the FastAPI event loop remains responsive to health probes and concurrent requests.
+
+2. **Concurrency Semaphore Guard**:
+   - Simulation endpoints (`/api/analyses`, `/api/simulations`) are guarded by an `asyncio.Semaphore` configured via `settings.MAX_CONCURRENT_SIMULATIONS` (default: 20).
+   - If semaphore slots are exhausted, the server rejects incoming runs immediately with HTTP 429 (`"System busy: maximum concurrent simulations reached"`).
+
+3. **Bounded Memory Retention**:
+   - `AnalysisRepository` enforces an upper limit configured via `settings.MAX_ANALYSES_CAPACITY` (default: 100).
+   - Once capacity is reached, the oldest session is evicted FIFO, preventing unbound memory growth.
+
+4. **Local-Only Deployment Classification**:
+   - SolarScope is architected as an engineering workstation tool for local analysis.
+   - Cross-session access control, RBAC, and multi-tenant isolation are intentionally not implemented. The system must not be exposed to public networks without reverse-proxy authentication and persistent tenant storage.

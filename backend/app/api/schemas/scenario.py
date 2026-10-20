@@ -9,27 +9,32 @@ from backend.app.api.schemas.analysis import FinancialResponseSchema
 
 class ScenarioRequestSchema(BaseModel):
     """Specification for a sensitivity analysis scenario."""
-    scenario_id: str = Field(description="Unique key for the scenario")
-    scenario_name: str = Field(description="Display title for the scenario")
-    description: str = Field(description="Explanation of scenario rationale")
+    scenario_id: str = Field(min_length=1, max_length=100, description="Unique key for the scenario")
+    scenario_name: str = Field(min_length=1, max_length=150, description="Display title for the scenario")
+    description: str = Field(max_length=500, description="Explanation of scenario rationale")
     generation_pct_adjustment: Optional[float] = Field(
         default=None,
+        ge=-100.0,
+        le=500.0,
         description="Percentage adjustment to total annual generation (e.g. -15.0 for -15%)",
     )
     installation_cost_override: Optional[float] = Field(
         default=None,
         ge=0.0,
-        description="Override turnkey installation cost in USD",
+        le=50_000_000.0,
+        description="Override turnkey installation cost in specified currency",
     )
     import_tariff_override: Optional[float] = Field(
         default=None,
         ge=0.0,
-        description="Override retail electricity import price ($/kWh)",
+        le=500.0,
+        description="Override retail electricity import price (currency/kWh)",
     )
     export_tariff_override: Optional[float] = Field(
         default=None,
         ge=0.0,
-        description="Override export compensation ($/kWh)",
+        le=500.0,
+        description="Override export compensation (currency/kWh)",
     )
     self_consumption_pct_override: Optional[float] = Field(
         default=None,

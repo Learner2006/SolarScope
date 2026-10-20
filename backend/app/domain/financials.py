@@ -6,6 +6,18 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 
+def get_currency_symbol(currency_code: str = "USD") -> str:
+    """Return standard currency symbol for supported ISO 4217 currency codes."""
+    code = (currency_code or "USD").upper()
+    if code == "INR":
+        return "₹"
+    if code == "EUR":
+        return "€"
+    if code == "GBP":
+        return "£"
+    return "$"
+
+
 @dataclass(frozen=True)
 class CashFlowPoint:
     """Cumulative cash flow at a given project year."""
@@ -48,6 +60,7 @@ class FinancialAnalysisResult:
     lifetime_net_cash_flow: float
     roi_percentage: float
     lcoe_per_kwh: float
+    currency_code: str = "USD"
 
     # Annual timeline for charts
     cash_flow_timeline: List[CashFlowPoint] = field(default_factory=list)
@@ -63,6 +76,7 @@ def calculate_financials(
     annual_maintenance_cost: float = 0.0,
     project_lifetime_years: int = 25,
     period_hours: float = 8760.0,
+    currency_code: str = "USD",
 ) -> FinancialAnalysisResult:
     """Calculate transparent solar financial metrics and payback period.
 
@@ -71,19 +85,21 @@ def calculate_financials(
     total_generation_kwh : float
         Generation achieved in the analyzed period.
     installation_cost : float
-        Initial turnkey installation and capital cost ($).
+        Initial turnkey installation and capital cost in specified currency.
     import_tariff : float
-        Retail grid electricity price ($/kWh) offset by self-consumed power.
+        Retail grid electricity price (currency/kWh) offset by self-consumed power.
     export_tariff : float
-        Feed-in tariff or export compensation ($/kWh) for grid export.
+        Feed-in tariff or export compensation (currency/kWh) for grid export.
     self_consumption_ratio : float
         Fraction of solar power consumed on-site (0.0 to 1.0).
     annual_maintenance_cost : float
-        Expected recurring annual operations & maintenance cost ($/year).
+        Expected recurring annual operations & maintenance cost (currency/year).
     project_lifetime_years : int
         Assumed project operational life in years (typically 20-30).
     period_hours : float
         Actual duration of analyzed time-series in hours.
+    currency_code : str
+        ISO 4217 currency code (e.g. 'USD', 'INR', 'EUR', 'GBP').
 
     Returns
     -------
@@ -104,40 +120,47 @@ def calculate_financials(
     if project_lifetime_years <= 0:
         raise ValueError(f"project_lifetime_years must be > 0, got {project_lifetime_years}")
 
-    # Scale to full annual equivalent if period is not 8,760 hours
-    # but keep period generation explicitly distinct
+    # Domain Boundary / Leap-Year Buffer:
+    # We allow a +/-48 hour buffer before triggering annualization.
+    # This ensures both regular years (8,760 h) and leap years (8,784 h) are treated as full annual
+    # baselines without artificially scaling leap-year generation by 8760 / 8784.
+    # For partial periods (<8,712 h), we normalize annual metrics while issuing an explicit caution
+    # because partial seasons (e.g. June vs December) misrepresent full annual declination.
     annualization_factor = (8760.0 / period_hours) if (period_hours > 0 and abs(period_hours - 8760.0) > 48) else 1.0
     if annualization_factor != 1.0:
         warnings.append(
-            f"Analyzed period represents {period_hours:.0f} hours. "
-            f"Annual financial returns are normalized using an annualization factor of {annualization_factor:.3f}."
+            f"Analyzed period represents {period_hours:.0f} hours ({period_hours / 8760.0 * 100.0:.1f}% of a standard year). "
+            f"Annual financial returns are normalized using an annualization factor of {annualization_factor:.3f}. "
+            "Caution: Seasonally incomplete periods do not reflect annual production due to summer/winter solar declination variations and should not be treated as a reliable annual forecast."
         )
 
     annual_gen_kwh = total_generation_kwh * annualization_factor
 
-    # Energy allocation
+    # Energy allocation between on-site consumption and grid export
     self_consumed_kwh = round(annual_gen_kwh * self_consumption_ratio, 2)
     exported_kwh = round(annual_gen_kwh * (1.0 - self_consumption_ratio), 2)
 
-    # Annual bill impacts
     avoided_import_savings = round(self_consumed_kwh * import_tariff, 2)
     export_revenue = round(exported_kwh * export_tariff, 2)
     gross_annual_savings = round(avoided_import_savings + export_revenue, 2)
     net_annual_benefit = round(gross_annual_savings - annual_maintenance_cost, 2)
 
-    # Payback analysis
+    # Failure Behaviour / Mathematical Robustness:
+    # When recurring annual maintenance equals or exceeds gross solar savings (net_annual_benefit <= 0),
+    # capital cost can never be recouped. We intentionally set simple_payback_years to None and report
+    # 'Non-recovering' rather than returning negative numbers or raising division-by-zero errors.
     simple_payback_years: Optional[float] = None
     is_payback_achievable = False
 
-    if installation_cost == 0.0:
-        simple_payback_years = 0.0
-        is_payback_achievable = True
-        payback_status = "Immediate (zero initial capital cost)"
-    elif net_annual_benefit <= 0.0:
+    if net_annual_benefit <= 0.0:
         simple_payback_years = None
         is_payback_achievable = False
         payback_status = "Non-recovering: annual operating costs equal or exceed gross solar savings"
         warnings.append("System generates zero or negative net annual cash flow under current tariff and cost assumptions.")
+    elif installation_cost == 0.0:
+        simple_payback_years = 0.0
+        is_payback_achievable = True
+        payback_status = "Immediate (zero initial capital cost)"
     else:
         raw_payback = installation_cost / net_annual_benefit
         simple_payback_years = round(raw_payback, 2)
@@ -154,7 +177,12 @@ def calculate_financials(
             is_payback_achievable = True
             payback_status = f"Payback in {simple_payback_years:.1f} years"
 
-    # Lifetime returns
+    # Architectural Decision / Trade-off:
+    # Lifetime returns, ROI, and LCOE are calculated as undiscounted nominal values under constant annual generation.
+    # While omitting panel degradation (~0.5%/yr) and cost-of-capital discounting makes projections optimistic,
+    # it keeps the financial baseline transparent, verifiable, and free of subjective discount rate assumptions.
+    # Future Improvement:
+    # Introduce an optional discounted cash-flow (NPV/IRR) mode with user-configurable discount and degradation rates.
     lifetime_total_generation_kwh = round(annual_gen_kwh * project_lifetime_years, 2)
     lifetime_gross_savings = round(gross_annual_savings * project_lifetime_years, 2)
     lifetime_operating_costs = round(annual_maintenance_cost * project_lifetime_years, 2)
@@ -214,6 +242,7 @@ def calculate_financials(
         lifetime_net_cash_flow=lifetime_net_cash_flow,
         roi_percentage=roi_percentage,
         lcoe_per_kwh=lcoe_per_kwh,
+        currency_code=currency_code,
         cash_flow_timeline=cash_flow_timeline,
         warnings=warnings,
     )

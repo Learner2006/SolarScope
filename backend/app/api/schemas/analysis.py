@@ -39,6 +39,7 @@ class FinancialResponseSchema(BaseModel):
     lifetime_net_cash_flow: float
     roi_percentage: float
     lcoe_per_kwh: float
+    currency_code: str = Field(default="USD", description="ISO 4217 currency code for financial modeling")
     cash_flow_timeline: List[CashFlowPointSchema]
     warnings: List[str]
 

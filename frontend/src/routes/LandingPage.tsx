@@ -54,7 +54,7 @@ export const LandingPage: React.FC = () => {
         }}
       >
         SolarScope integrates hourly atmospheric reanalysis data with transparent financial calculation engines.
-        Define your site scope, evaluate actual monthly solar generation, model avoided-bill savings, and test sensitivity scenarios with zero fabricated values.
+        Define your site scope, evaluate monthly solar generation, model avoided-bill savings, and test sensitivity scenarios with zero fabricated values.
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", gap: "1rem", marginBottom: "4rem" }}>
